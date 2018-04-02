@@ -1,0 +1,20 @@
+Exception in thread Thread-510:
+Traceback (most recent call last):
+  File "/root/anaconda3/lib/python3.5/threading.py", line 914, in _bootstrap_inner
+    self.run()
+  File "/root/anaconda3/lib/python3.5/threading.py", line 862, in run
+    self._target(*self._args, **self._kwargs)
+  File "/root/anaconda3/lib/python3.5/concurrent/futures/process.py", line 295, in _queue_management_worker
+    shutdown_worker()
+  File "/root/anaconda3/lib/python3.5/concurrent/futures/process.py", line 253, in shutdown_worker
+    call_queue.put_nowait(None)
+  File "/root/anaconda3/lib/python3.5/multiprocessing/queues.py", line 129, in put_nowait
+    return self.put(obj, False)
+  File "/root/anaconda3/lib/python3.5/multiprocessing/queues.py", line 83, in put
+    raise Full
+queue.Full
+
+Traceback (most recent call last):
+  File "get_pv_table_20160104_pycharn_premote_multiprocess.py", line 287, in <module>
+    raise err
+concurrent.futures.process.BrokenProcessPool: A process in the process pool was terminated abruptly while the future was running or pending.

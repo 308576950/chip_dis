@@ -1,0 +1,16 @@
+concurrent.futures.process._RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/root/anaconda3/lib/python3.5/concurrent/futures/process.py", line 175, in _process_worker
+    r = call_item.fn(*call_item.args, **call_item.kwargs)
+  File "get_pv_table_20160104_pycharn_premote_multiprocess.py", line 173, in write_oneday_pricetable
+    if (table_name,) in row_list_tables:  # 有该股票名字的表
+UnboundLocalError: local variable 'table_name' referenced before assignment
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "get_pv_table_20160104_pycharn_premote_multiprocess.py", line 268, in <module>
+    raise err
+UnboundLocalError: local variable 'table_name' referenced before assignment
