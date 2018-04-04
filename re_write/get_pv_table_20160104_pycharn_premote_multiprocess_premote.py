@@ -12,9 +12,58 @@ import pdb
 from warnings import filterwarnings
 from functools import reduce
 from DB_connetion_pool_pv_table_back_up import getPTConnection, PTConnectionPool;
+import numpy as np
+from heapq import nlargest
 
 
 filterwarnings('ignore', category=pymysql.Warning)
+
+def extreme(my_dict, close):   # 思路是在收盘价的一个涨跌幅之内最大的筹码密集区
+    # 在区间内做平滑处理
+    s_p_price = {}
+    if len(my_dict) < 1:  # 价格小于5个则认为没有支撑位和压力位
+        s_p_price['S'] = 0
+        s_p_price['P'] = 0
+        print("价格数目太少，没有支撑压力位")
+        return s_p_price
+    else:
+        # average_n = math.floor(len(my_dict) / 5)    移动平均，效果并不好，下一步来测试画出包络图
+        # chip_list = list(my_dict.values())
+        # tmp = []
+        # for i in range(average_n, len(chip_list) - average_n):
+        #     tmp.append(np.array(chip_list[i - average_n:i + average_n]).mean())
+        # tmp = chip_list[:average_n] + tmp + chip_list[average_n:]
+        # ma_my_dict = dict(zip(list(my_dict.keys()), tmp))
+
+        # dict_list = []
+        # for k, v in my_dict.items():
+        #     dict_list.append({k: v})   # 为了利用nlargest函数，将dict变成了[dict]的格式
+        # envelope = nlargest(8, dict_list, key=lambda s: s["chip"])   # 取最大的8个作为包络
+
+        my_array1 = np.arange(round(0.9 * close, 2), close, 0.01)   # 低于收盘价，计算支撑位
+        my_array2 = np.arange(close, round(1.1 * close, 2), 0.01)    # 高于收盘价，计算压力位
+
+        tmp1 = []
+        tmp2 = []
+
+        for i in my_array1:
+            if round(i, 2) in list(my_dict.keys()):
+                tmp1.append({"price": i, "chip": my_dict[round(i, 2)]})     # 找出支撑位的筹码备选区间
+        if nlargest(1, tmp1, key=lambda s: s["chip"]):
+            s_p_price['S'] = round(nlargest(1, tmp1, key=lambda s: s["chip"])[0]["price"], 2)
+        else:
+            s_p_price['S'] = 0
+
+        for i in my_array2:             # 找出压力位的筹码备选区间
+            if round(i, 2) in list(my_dict.keys()):
+                tmp2.append({"price": i, "chip": my_dict[round(i, 2)]})
+        if nlargest(1, tmp2, key=lambda s: s["chip"]):
+            s_p_price['P'] = round(nlargest(1, tmp2, key=lambda s: s["chip"])[0]["price"], 2)
+        else:
+            s_p_price['P'] = 0
+        return s_p_price       #  {"S":支撑位, "P":压力位}
+
+
 
 def sell_prob(pv_table_keys, chip_keys, ratio, date):
     prob = []
@@ -194,6 +243,8 @@ def new_write_onestock(item, date):
     #row = db.cursor.fetchone()
     row = cur.fetchone()        
 
+
+
     if row[0] == 0:
         # 刚上市的新股，需要取ipo价格来进行计算
         ipo_price = initial_info.loc[tmp_code]["首发价格"]  # 发行价
@@ -223,7 +274,23 @@ def new_write_onestock(item, date):
         tmp_ddf = sum_df.loc[sum_df['SecurityID'] == int_indexcode]  # 直接从sum_df中切片索引得到该股票的ddf
         ddf = tmp_ddf.loc[tmp_ddf['Price'] != 0]  # 月明计算的合成表中存在价格为0的记录，也就是Falg = 4
         today_pvtable = cal_pvtable(yesterday_pvtable, ddf, date, code_name)
-    return code_name,today_pvtable
+
+    #pdb.set_trace()
+#  增加收盘价的读取，因此在单独计算支撑压力位的过程中，发现读取有困难，所以在写入20160104之后的筹码的过程中便写入收盘价、支撑位和压力位
+    file_name = {'6':'.SH.CSV', '0':".SZ.CSV", '3':".SZ.CSV"}
+    df = pd.read_csv("/data/write_mysql_20180325/re_write/front_exclude_close/" + code_name + file_name[code_name[0]], index_col=2, encoding="gbk")
+    try:
+        close_price = df.loc[int(date),'收盘价(元)']
+    except Exception as e:
+        close_price = 0.0
+
+## 计算出支撑压力位
+    sp_price_dict = extreme(today_pvtable, close_price)    # 需要获得前复权价格   002668 NoneType has no attribute 'item'
+
+#    records.append((float(sp_price_dict["P"]),float(sp_price_dict["S"]), code, item[0]))
+
+
+    return code_name, today_pvtable, close_price, sp_price_dict['S'],sp_price_dict['P'] 
     #return item+1,date
 
     # records.append((code_name, date, str(today_pvtable)))   # 名称，日期，筹码  把单个pricetable中的所有股票都记录在一个list中，然后一次写入
@@ -258,33 +325,36 @@ def new_write_oneday_pricetable(sum_df, date):
     records_cyb = []
 
     results = []
-    pool = multiprocessing.Pool(processes=4)
+    pool = multiprocessing.Pool(processes=8)
 
     for item in set(sum_df["SecurityID"]):  # 代码集合
         if cal_or_not(item,sum_df, date):   # 是股票代码且sum_df中不全是0，也就是当天没有停牌
                 # write_oneday_pricetable(iitem, row_list_tables, date, sum_df, initial_info)
-            result = pool.apply_async(new_write_onestock, args=(item, date))
-            #new_write_onestock(item, date)
-            results.append(result)
+            if str(item)[1] == '3': 
+                result = pool.apply_async(new_write_onestock, args=(item, date))
+            #result = new_write_onestock(item, date)
+                results.append(result)
     pool.close()
     pool.join()
+
+    # code_name, today_pvtable, close_price, sp_price_dict['S'],sp_price_dict['P']
 
     #pdb.set_trace()
     for result in results:
         code_name = result.get()[0]
         if code_name[0] == '6':
-            records_zb.append((code_name, date, str(result.get()[1])))    # result.get()   # 返回的pv_table
+            records_zb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]), str(result.get()[4])))    # result.get()   # 返回的pv_table
         if code_name[0] == '0':
-            records_zxb.append((code_name, date, str(result.get()[1])))
+            records_zxb.append((code_name, date, str(result.get()[1]), str(result.get(2)), str(result.get(3)), str(result.get(4))))
         if code_name[0] == '3':
-            records_cyb.append((code_name, date, str(result.get()[1])))
+            records_cyb.append((code_name, date, str(result.get()[1]), str(result.get(2)), str(result.get(3)), str(result.get(4))))
     
     
     with getPTConnection() as db:    
         try:
-            db.cursor.executemany("insert into pricetable_zb (code, tra_date, chip) values(%s,%s,%s)", records_zb)
-            db.cursor.executemany("insert into pricetable_zxb (code, tra_date, chip) values(%s,%s,%s)", records_zxb)
-            db.cursor.executemany("insert into pricetable_cyb (code, tra_date, chip) values(%s,%s,%s)", records_cyb)
+            db.cursor.executemany("insert into pricetable_zb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)", records_zb)
+            db.cursor.executemany("insert into pricetable_zxb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)", records_zxb)
+            db.cursor.executemany("insert into pricetable_cyb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)", records_cyb)
 
             db.conn.commit()
             print(date, " over")
@@ -307,7 +377,7 @@ if __name__ == '__main__':
         
 
 #    with getPTConnection() as db:    
-    for item in files_name[452:]:          # 一个pricetable是一个循环，一次计算完一个pricetable
+    for item in files_name[469:]:          # 一个pricetable是一个循环，一次计算完一个pricetable
         print(item)
         date = item[0:8]  # 20160104
         sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/" + item)
