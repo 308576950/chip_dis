@@ -328,12 +328,12 @@ def new_write_oneday_pricetable(sum_df, date):
     pool = multiprocessing.Pool(processes=8)
 
     for item in set(sum_df["SecurityID"]):  # 代码集合
+            #pdb.set_trace()
         if cal_or_not(item,sum_df, date):   # 是股票代码且sum_df中不全是0，也就是当天没有停牌
                 # write_oneday_pricetable(iitem, row_list_tables, date, sum_df, initial_info)
-            if str(item)[1] == '3': 
-                result = pool.apply_async(new_write_onestock, args=(item, date))
-            #result = new_write_onestock(item, date)
-                results.append(result)
+            result = pool.apply_async(new_write_onestock, args=(item, date))
+                #result = new_write_onestock(item, date)
+            results.append(result)
     pool.close()
     pool.join()
 
@@ -345,22 +345,59 @@ def new_write_oneday_pricetable(sum_df, date):
         if code_name[0] == '6':
             records_zb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]), str(result.get()[4])))    # result.get()   # 返回的pv_table
         if code_name[0] == '0':
-            records_zxb.append((code_name, date, str(result.get()[1]), str(result.get(2)), str(result.get(3)), str(result.get(4))))
+            records_zxb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]), str(result.get()[4])))
         if code_name[0] == '3':
-            records_cyb.append((code_name, date, str(result.get()[1]), str(result.get(2)), str(result.get(3)), str(result.get(4))))
+            records_cyb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]), str(result.get()[4])))
+ 
+    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+    cur = conn.cursor()
     
-    
-    with getPTConnection() as db:    
-        try:
-            db.cursor.executemany("insert into pricetable_zb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)", records_zb)
-            db.cursor.executemany("insert into pricetable_zxb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)", records_zxb)
-            db.cursor.executemany("insert into pricetable_cyb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)", records_cyb)
+    #pdb.set_trace()
+     
+    try:
+        cur.executemany("replace into pricetable_zb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)", records_zb)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
 
-            db.conn.commit()
-            print(date, " over")
-        except Exception as e:
-            db.conn.rollback()
-            print(date, "Exception: ", str(e))
+    try:
+        cur.executemany("replace into pricetable_zxb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)", records_zxb)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+
+    try: 
+        cur.executemany("replace into pricetable_cyb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)", records_cyb)
+        conn.commit()
+    except Exception as e:    
+        conn.rollback()
+    
+    cur.close()
+    conn.close()
+#    except Exception as e:
+#        conn.rollback()
+#        print(date, "Exception: ", str(e))
+#     for result in results:
+#        code_name = result.get()[0]
+#        if code_name[0] == '6':
+#            records_zb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]), str(result.get()[4])))    # result.get()   # 返回的pv_table
+#        if code_name[0] == '0':
+#            records_zxb.append((code_name, date, str(result.get()[1]), str(result.get(2)), str(result.get(3)), str(result.get(4))))
+#        if code_name[0] == '3':
+#            records_cyb.append((code_name, date, str(result.get()[1]), str(result.get(2)), str(result.get(3)), str(result.get(4))))
+    
+
+#    with getPTConnection() as db:    
+#        try:
+#            db.cursor.executemany("insert into pricetable_zb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)", records_zb)
+#            db.cursor.executemany("insert into pricetable_zxb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)", records_zxb)
+#            db.cursor.executemany("insert into pricetable_cyb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)", records_cyb)
+
+#            db.conn.commit()
+#            print(date, " over")
+#        except Exception as e:
+#            db.conn.rollback()
+#            print(date, "Exception: ", str(e))
     
 
 
@@ -377,7 +414,7 @@ if __name__ == '__main__':
         
 
 #    with getPTConnection() as db:    
-    for item in files_name[469:]:          # 一个pricetable是一个循环，一次计算完一个pricetable
+    for item in files_name[449:]:          # 一个pricetable是一个循环，一次计算完一个pricetable
         print(item)
         date = item[0:8]  # 20160104
         sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/" + item)
@@ -389,7 +426,8 @@ if __name__ == '__main__':
 #        sql_get_all_tables = "select table_name from information_schema.TABLES where TABLE_SCHEMA='pv_table'"
 #        cur.execute(sql_get_all_tables)
 #        row_list_tables = cur.fetchall()
-        new_write_oneday_pricetable(sum_df, date)   
+        if int(date) < 20180207:
+            new_write_oneday_pricetable(sum_df, date)   
  
                
                 
