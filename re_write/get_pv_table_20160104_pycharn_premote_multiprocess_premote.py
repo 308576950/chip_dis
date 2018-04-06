@@ -1,3 +1,5 @@
+# 计算筹码分布的同时也计算写入close，计算支撑压力位
+
 import json
 import urllib.request
 import pandas as pd
