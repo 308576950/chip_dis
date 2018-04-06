@@ -153,10 +153,16 @@ def cal_one_stock_sp_price(code):
             db.conn.rollback()
 
 
-def insert_close(table_name, code, conn):   # 增加close_price字段
+def insert_close(table_name, code):   # 增加close_price字段
     # 思路  一次读取完所有的价格 然后executemany
+    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
     cur = conn.cursor()
     records = []
+    
+#    if code == '002593':
+#        pdb.set_trace()
+#        pass    
+
     sql_get_tradates = "select tra_date from %s where code = '%s'" % (table_name, code)
     cur.execute(sql_get_tradates)   # 获得所有交易日
     row_date_list = cur.fetchall()
@@ -164,6 +170,7 @@ def insert_close(table_name, code, conn):   # 增加close_price字段
     file_name = {'6':'.SH.CSV', '0':".SZ.CSV", '3':".SZ.CSV"}    
 
     df = pd.read_csv("/data/write_mysql_20180325/re_write/front_exclude_close/" + code + file_name[code[0]], index_col=2, encoding="gbk")
+    
 
     for item in row_date_list:
         try:
@@ -171,7 +178,12 @@ def insert_close(table_name, code, conn):   # 增加close_price字段
         except Exception as e:
             print("Exception: ", str(e))
             close_price = 0.0
+
+        if close_price == 0.0:
+            pdb.set_trace()
+            pass
         records.append((float(close_price), code, str(item[0]).replace('-','')))   # 读取记录，存入tuple中
+    
  
     with getPTConnection() as db:
         try:
@@ -370,8 +382,7 @@ if __name__ == '__main__':
         cur.execute(sql)
         for item in cur.fetchall():
             codes.append(item[0])
-    cur.close() 
-    conn.close()    
+      
 #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$  计算支撑压力位
 #    pool = multiprocessing.Pool(processes=8)
 #    for code in codes:
@@ -380,27 +391,28 @@ if __name__ == '__main__':
 #    pool.join() 
 
 #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$   计算支撑压力强度
-    pool = multiprocessing.Pool(processes=8)
-    for code in codes:
-        pool.apply_async(cal_one_code_win_lose_ratio, (code,))     
-        #cal_one_code_win_lose_ratio(code)
-    pool.close()
-    pool.join() 
+#    pool = multiprocessing.Pool(processes=8)
+#    for code in codes:
+#        pool.apply_async(cal_one_code_win_lose_ratio, (code,))     
+#        #cal_one_code_win_lose_ratio(code)
+#    pool.close()
+#    pool.join() 
 
 
 #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$   写入收盘价
-#    for table in code_table:
-#        sql_get_tables_from_table = "select distinct code from %s"%table
-#        cur.execute(sql_get_tables_from_table)
-#        row_list_codes = cur.fetchall()
-#        for item in row_list_codes:
-#            #pool.apply_async(insert_close, (table, item[0], conn))
-#            insert_close(table, item[0], conn)               # 增加close字段
-#
-#        #pool.close()
-#        #pool.join()
-#
-#        print(table, "over")
+    pool = multiprocessing.Pool(processes=8)
+    for table in code_table:
+        sql_get_tables_from_table = "select distinct code from %s"%table
+        cur.execute(sql_get_tables_from_table)
+        row_list_codes = cur.fetchall()
+        for item in row_list_codes:
+            #pool.apply_async(insert_close, (code_table[2], item[0]))
+            insert_close(code_table[1], item[0])               # 增加close字段
+
+    #pool.close()
+    #pool.join()
+
+        print(table, "over")
 
 #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 #    for table in code_table:
