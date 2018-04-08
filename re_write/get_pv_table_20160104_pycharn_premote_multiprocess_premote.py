@@ -13,10 +13,10 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import pdb
 from warnings import filterwarnings
 from functools import reduce
-from DB_connetion_pool_pv_table_back_up import getPTConnection, PTConnectionPool;
+#from DB_connetion_pool_pv_table_back_up import getPTConnection, PTConnectionPool;
 import numpy as np
 from heapq import nlargest
-
+import sys
 
 filterwarnings('ignore', category=pymysql.Warning)
 
@@ -119,8 +119,8 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):   # 利用昨天筹码图，当�
         tmp_code = code + '.SH'
     else:
         tmp_code = code + ".SZ"  # tmp_code = lambda x: x + '.SH' if x[0] == '6' else x + '.SZ'
-    dddf = pd.read_csv("/root/project_price/vol_turnover_test_ex_factor/" + tmp_code + ".CSV", encoding='gbk',
-                               index_col=3)  # 读取包含换手率、成交量和复权因子的CSV文件
+    #dddf = pd.read_csv("/root/project_price/vol_turnover_test_ex_factor/" + tmp_code + ".CSV", encoding='gbk',index_col=3)  # 读取包含换手率、成交量和复权因子的CSV文件
+    dddf = pd.read_csv("/root/project_price/vol_turnover_test_ex_factor_20180404/" + tmp_code + ".CSV", encoding='gbk',index_col=0)  # 读取包含换手率、成交量和复权因子的CSV文件
     ## 需要计算出从date日期到现在时间的累积复权因子
     #try:
     #    cum_factor = reduce(lambda x, y: x * y, dddf.loc[int(date)+1:, "复权因子"])    # 从该天之后的累计复权因子，用来将Tick数据中的真实价格转化成相对于此时此刻的前复权价格     
@@ -133,6 +133,8 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):   # 利用昨天筹码图，当�
         ex_factor = dddf.loc[int(date), "复权因子"]
         turnover_ratio = float(dddf.loc[int(date), "换手率(%)"]) / 100  # 换手率
         turnover_volume = float(dddf.loc[int(date), "成交量(股)"])  # 成交量
+
+        close_price = dddf.loc[int(date), '收盘价(元)']           # 原来的front_ex_close文件和现在的vol_turnover_test_ex_factor_20180404文件合并，close_price亦写在vol_turnover_test_ex_factor_20180404中      
 
         # market_cap = turnover_volume / turnover_ratio
 
@@ -190,7 +192,7 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):   # 利用昨天筹码图，当�
         for key, value in pv_table_adj.items():  # 等比率调整
             pv_table_adj[key] = value / sum_value
 
-        return pv_table_adj
+        return pv_table_adj, close_price
         # print(date, pv_table_adj)
         # else:
         #     # 第一天 筹码表还没有建立
@@ -202,7 +204,10 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):   # 利用昨天筹码图，当�
     except Exception as e:
         pdb.set_trace()
         print("Exception: ", str(e))
-        print(date, code, "无数据", tmp_pv_table)
+        print(date, code, "无数据")
+        s=sys.exc_info()
+        print ("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+
         #pdb.set_trace()
     
 
@@ -210,7 +215,7 @@ def new_write_onestock(item, date):
     
     code_table = {'6': "pricetable_zb", '0': "pricetable_zxb", '3': "pricetable_cyb"}
     code_name = str(item)[1:len(str(item))]  # 1600000 -> "600000"
-    if code_name == "601313":    # code_name 是需要去检查是否存在该股票，所以是601360
+    if code_name == "601313" and int(date) < 20180228:    # code_name 是需要去检查是否存在该股票，所以是601360  item是从pricetable中来，pricetable中在20180228之前都是601313
         #pdb.set_trace()
         code_name = "601360"
 
@@ -227,7 +232,7 @@ def new_write_onestock(item, date):
 
     # if str(iitem)[1] in ["6","0","2"]:     # 有些是500打头的
 #    if tmp_code in list(code_list):  # 有些是000300 沪深300
-    if int_indexcode == 1601360:  # sum_df中用的是601313
+    if int_indexcode == 1601360 and int(date) < 20180228:  # sum_df中用的是601313  因为20180228之后才更名为601360
         int_indexcode = 1601313
 
     # 开始表演   处理数据
@@ -236,7 +241,7 @@ def new_write_onestock(item, date):
     #sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/" + item)
     
     #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
-    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
     cur = conn.cursor()
     pricetable = code_table[code_name[0]]  # 根据code_table  dict获得是那一张表
     sql = "select count(*) from %s where code='%s'" % (pricetable, code_name)
@@ -245,17 +250,16 @@ def new_write_onestock(item, date):
     #row = db.cursor.fetchone()
     row = cur.fetchone()        
 
-
-
     if row[0] == 0:
         # 刚上市的新股，需要取ipo价格来进行计算
-        ipo_price = initial_info.loc[tmp_code]["首发价格"]  # 发行价
-        if ipo_price != ipo_price:  # 说明ipo价格为nan, 此时设置ipo_price 为1
-            ipo_price = 1
-        initial_pvtable = {ipo_price: 1}
+        #ipo_price = initial_info.loc[tmp_code]["首发价格"]  # 发行价
+        #if ipo_price != ipo_price:  # 说明ipo价格为nan, 此时设置ipo_price 为1
+        #    ipo_price = 1
         tmp_ddf = sum_df.loc[sum_df['SecurityID'] == int_indexcode]  # 直接从sum_df中切片索引得到该股票的ddf
         ddf = tmp_ddf.loc[tmp_ddf['Price'] != 0]
-        today_pvtable = cal_pvtable(initial_pvtable, ddf, date, code_name)
+        ipo_price = min(ddf["Price"])/10000/1.2
+        initial_pvtable = {ipo_price: 1}
+        today_pvtable, close_price = cal_pvtable(initial_pvtable, ddf, date, code_name)
 
     else:
         # 已经存在的股票，取最近的chip开始计算即可
@@ -271,20 +275,21 @@ def new_write_onestock(item, date):
             yesterday_pvtable = eval(row[0])
         except Exception as e:
             print("Error")
-            # pdb.set_trace()
-        yesterday_pvtable = eval(row[0])
+            #pdb.set_trace()
+            yesterday_pvtable = {}
+        #yesterday_pvtable = eval(row[0])
         tmp_ddf = sum_df.loc[sum_df['SecurityID'] == int_indexcode]  # 直接从sum_df中切片索引得到该股票的ddf
         ddf = tmp_ddf.loc[tmp_ddf['Price'] != 0]  # 月明计算的合成表中存在价格为0的记录，也就是Falg = 4
-        today_pvtable = cal_pvtable(yesterday_pvtable, ddf, date, code_name)
+        today_pvtable, close_price = cal_pvtable(yesterday_pvtable, ddf, date, code_name)
 
     #pdb.set_trace()
 #  增加收盘价的读取，因此在单独计算支撑压力位的过程中，发现读取有困难，所以在写入20160104之后的筹码的过程中便写入收盘价、支撑位和压力位
-    file_name = {'6':'.SH.CSV', '0':".SZ.CSV", '3':".SZ.CSV"}
-    df = pd.read_csv("/data/write_mysql_20180325/re_write/front_exclude_close/" + code_name + file_name[code_name[0]], index_col=2, encoding="gbk")
-    try:
-        close_price = df.loc[int(date),'收盘价(元)']
-    except Exception as e:
-        close_price = 0.0
+#    file_name = {'6':'.SH.CSV', '0':".SZ.CSV", '3':".SZ.CSV"}
+#    df = pd.read_csv("/data/write_mysql_20180325/re_write/front_exclude_close/" + code_name + file_name[code_name[0]], index_col=2, encoding="gbk")
+#    try:
+#        close_price = df.loc[int(date),'收盘价(元)']    # 存量数据读取close的时候是从wind数据库中导出的,wind数据中导出的已经是前复权收盘价了
+#    except Exception as e:
+#        close_price = 0.0
 
 ## 计算出支撑压力位
     sp_price_dict = extreme(today_pvtable, close_price)    # 需要获得前复权价格   002668 NoneType has no attribute 'item'
@@ -299,26 +304,40 @@ def new_write_onestock(item, date):
 
 def cal_or_not(item, sum_df, date):
     code_name = str(item)[1:len(str(item))]  # 1600000 -> "600000"
-    if code_name == "601313":    # code_name 是需要去检查是否存在该股票，所以是601360
-        code_name = "601360"
+#    if code_name == "601313":    # code_name 是需要去检查是否存在该股票，所以是601360
+#        code_name = "601360"
     
-    if code_name[0] == '6':        # 有501050这样的基金，也有000300这样的指数
-        tmp_code = code_name + '.SH'  # 600000.SH
-    elif code_name[0] == '0' or code_name[0] == '3':
-        tmp_code = code_name + '.SZ'
-    else:
-        tmp_code = ''   
+#    if code_name[0] == '6':        # 有501050这样的基金，也有000300这样的指数
+#        tmp_code = code_name + '.SH'  # 600000.SH
+#    elif code_name[0] == '0' or code_name[0] == '3':
+#        tmp_code = code_name + '.SZ'
+#    else:
+#        tmp_code = ''   
 
 
-    if tmp_code in list(code_list):  # 有些是000300 沪深300
-        dddf = pd.read_csv("/root/project_price/vol_turnover_test_ex_factor/" + tmp_code + ".CSV", encoding='gbk',index_col=3)
-        if dddf.loc[int(date), "成交量(股)"] != '--':   # 存在成交量，说明当天该股票存在交易，wind导出的数据是最准确的。月明读取的数据有错误
-            tmp_ddf = sum_df.loc[sum_df['SecurityID'] == item]  # 直接从sum_df中切片索引得到该股票的ddf
-            ddf = tmp_ddf.loc[tmp_ddf['Price'] != 0]
-            if not ddf.empty:    # ddf不为空才说明当天真实没有停牌
-                return True
-    else:
-        return False
+    #if tmp_code in list(code_list):  # 有些是000300 沪深300
+        #dddf = pd.read_csv("/root/project_price/vol_turnover_test_ex_factor/" + tmp_code + ".CSV", encoding='gbk',index_col=3)
+    #    dddf = pd.read_csv("/root/project_price/vol_turnover_test_ex_factor_20180404/" + tmp_code + ".CSV", encoding='gbk',index_col=0)
+    #    if dddf.loc[int(date), "成交量(股)"] != '--':   # 存在成交量，说明当天该股票存在交易，wind导出的数据是最准确的。月明读取的数据有错误
+    tmp_ddf = sum_df.loc[sum_df['SecurityID'] == item]  # 直接从sum_df中切片索引得到该股票的ddf
+    ddf = tmp_ddf.loc[tmp_ddf['Price'] != 0]
+    if not ddf.empty:    # ddf不为空才说明当天真实没有停牌
+        if min(ddf["Price"]) / 10000 < 1000:     # 指数 1000016   以及个股2000016 二者只有通过价格来区分，指数价格高于1000
+            return True
+    
+    return False
+
+
+#    以下是增量计算的代码，对比以下，修改存量计算的cal_or_not的代码
+#    tmp_ddf = sum_df.loc[sum_df['SecurityID'] == item]  # 直接从sum_df中切片索引得到该股票的ddf
+#    ddf = tmp_ddf.loc[tmp_ddf['Price'] != 0]
+#    if not ddf.empty:  # ddf不为空才说明当天真实没有停牌
+#        if min(ddf["Price"]) / 10000 < 1000:     # 指数 1000016   以及个股2000016 二者只有通过价格来区分，指数价格高于1000
+#            return True
+
+#    return False
+
+
             
 
 def new_write_oneday_pricetable(sum_df, date):
@@ -331,17 +350,18 @@ def new_write_oneday_pricetable(sum_df, date):
 
     for item in set(sum_df["SecurityID"]):  # 代码集合
             #pdb.set_trace()
-        if cal_or_not(item,sum_df, date):   # 是股票代码且sum_df中不全是0，也就是当天没有停牌
+        if str(item)[1] in ['0', '3', '6']:   # 有些是基金，目前发现的基金代码以5开头
+            if cal_or_not(item,sum_df, date):   # 是股票代码且sum_df中不全是0，也就是当天没有停牌
                 # write_oneday_pricetable(iitem, row_list_tables, date, sum_df, initial_info)
-            result = pool.apply_async(new_write_onestock, args=(item, date))
+                result = pool.apply_async(new_write_onestock, args=(item, date))
                 #result = new_write_onestock(item, date)
-            results.append(result)
+                results.append(result)
     pool.close()
     pool.join()
 
     # code_name, today_pvtable, close_price, sp_price_dict['S'],sp_price_dict['P']
 
-    #pdb.set_trace()
+    # pdb.set_trace()
     for result in results:
         code_name = result.get()[0]
         if code_name[0] == '6':
@@ -351,7 +371,7 @@ def new_write_oneday_pricetable(sum_df, date):
         if code_name[0] == '3':
             records_cyb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]), str(result.get()[4])))
  
-    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
     cur = conn.cursor()
     
     #pdb.set_trace()
@@ -376,6 +396,7 @@ def new_write_oneday_pricetable(sum_df, date):
     
     cur.close()
     conn.close()
+    print(date, 'over')
 #    except Exception as e:
 #        conn.rollback()
 #        print(date, "Exception: ", str(e))
@@ -405,8 +426,8 @@ def new_write_oneday_pricetable(sum_df, date):
 
 if __name__ == '__main__':
     t1 = time.time()
-    initial_info = pd.read_csv("/root/project_price/initial_info.csv", encoding='gbk', index_col=0)  # 获得所有股票的ipo时间
-    code_list = list(pd.read_csv("/data/write_mysql_20180325/code_list.csv",encoding='gbk')["股票代码"])   # 所有股票的代码，Tick数据里面由一些是基金  譬如510050  000300
+    #initial_info = pd.read_csv("/root/project_price/initial_info.csv", encoding='gbk', index_col=0)  # 获得所有股票的ipo时间
+    #code_list = list(pd.read_csv("/data/write_mysql_20180325/code_list.csv",encoding='gbk')["股票代码"])   # 所有股票的代码，Tick数据里面由一些是基金  譬如510050  000300
 
     files_name = []
     for (root, dirs, files) in os.walk("/data/yue_ming_pricetable/pricetable"):
@@ -416,7 +437,7 @@ if __name__ == '__main__':
         
 
 #    with getPTConnection() as db:    
-    for item in files_name[449:]:          # 一个pricetable是一个循环，一次计算完一个pricetable
+    for item in files_name[521:]:          # 一个pricetable是一个循环，一次计算完一个pricetable
         print(item)
         date = item[0:8]  # 20160104
         sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/" + item)
@@ -428,8 +449,8 @@ if __name__ == '__main__':
 #        sql_get_all_tables = "select table_name from information_schema.TABLES where TABLE_SCHEMA='pv_table'"
 #        cur.execute(sql_get_all_tables)
 #        row_list_tables = cur.fetchall()
-        if int(date) < 20180207:
-            new_write_oneday_pricetable(sum_df, date)   
+#        if int(date) < 20180207:
+        new_write_oneday_pricetable(sum_df, date)   
  
                
                 
