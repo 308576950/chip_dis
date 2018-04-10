@@ -134,7 +134,7 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):   # 利用昨天筹码图，当�
         turnover_ratio = float(dddf.loc[int(date), "换手率(%)"]) / 100  # 换手率
         turnover_volume = float(dddf.loc[int(date), "成交量(股)"])  # 成交量
 
-        close_price = dddf.loc[int(date), '收盘价(元)']           # 原来的front_ex_close文件和现在的vol_turnover_test_ex_factor_20180404文件合并，close_price亦写在vol_turnover_test_ex_factor_20180404中      
+        close_price = round(dddf.loc[int(date), '收盘价(元)'], 2)           # 原来的front_ex_close文件和现在的vol_turnover_test_ex_factor_20180404文件合并，close_price亦写在vol_turnover_test_ex_factor_20180404中, 有些价格是有四位有效数字，需要保留2位 
 
         # market_cap = turnover_volume / turnover_ratio
 
