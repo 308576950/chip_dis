@@ -5,7 +5,7 @@ import pymysql
 import pandas as pd
 import multiprocessing
 import pdb
-from DB_connetion_pool import getPTConnection, PTConnectionPool;
+import sys
 
 def extreme(my_dict, close):   # 思路是在收盘价的一个涨跌幅之内最大的筹码密集区
     # 在区间内做平滑处理
@@ -207,7 +207,8 @@ def insert_close(table_name, code):   # 增加close_price字段
 
 def format_chip(table_name, code):   #将chip进行格式化, value保留8位有效数字 
     # 思路  一次读取完所有的价格 然后executemany
-    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
+    #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
+    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db=db_name, port=3306, charset='utf8')
     cur = conn.cursor()
     records = []
     sql_get_tradates = "select tra_date, chip from %s where code = '%s'" % (table_name, code)
@@ -353,17 +354,15 @@ def cal_one_code_sp_price(code):    # 计算一只股票的支撑位和压力位
 
  
 def cal_one_code_win_lose_day(table_name, code):    # 计算一只股票的支撑位和压力位的有效支撑天数和有效压力天数
-    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
     cur = conn.cursor()
 #    code_table = {'6':"pricetable_zb", '0':"pricetable_zxb", '3':"pricetable_cyb"}
 #    table_name = code_table[code[0]]
     records = []
-    sql_get_tradates = "select tra_date, close, pre_p, sup_p from %s where code = '%s' and tra_date>'20160101'" % (table_name, code)
+    sql_get_tradates = "select tra_date, close, pre_p, sup_p from %s where code = '%s'" % (table_name, code)
     cur.execute(sql_get_tradates)   # 获得所有交易日
     row_date_chip_list = cur.fetchall()
     
-    # close 需要取第二天
-
 # 先要增加字段
 
     file_name = {'6':'.SH.CSV', '0':".SZ.CSV", '3':".SZ.CSV"}    
@@ -372,9 +371,9 @@ def cal_one_code_win_lose_day(table_name, code):    # 计算一只股票的支�
     sup_records = []
 
     
-    for i in range(0, len(row_date_chip_list)-1):    # item[0,1,2,3]
+    for i in range(1, len(row_date_chip_list)):    # item[0,1,2,3]
         date = row_date_chip_list[i][0]
-        close = row_date_chip_list[i+1][1]     #close 需要取第二天的 
+        close = row_date_chip_list[i][1]
         pre_p = row_date_chip_list[i][2]
         sup_p = row_date_chip_list[i][3]            
 
@@ -400,7 +399,7 @@ def cal_one_code_win_lose_day(table_name, code):    # 计算一只股票的支�
 
 
     #pdb.set_trace()
-    records = [(pre_yes[i], sup_yes[i], i+1, code, row_date_chip_list[i][0]) for i in range(len(row_date_chip_list))]
+    records = [(pre_yes[i], sup_yes[i], len(row_date_chip_list), code, row_date_chip_list[i][0]) for i in range(len(row_date_chip_list))]
 
 
 #        records.append((str(chip), code, str(item[0]).replace('-','')))   # 读取记录，存入tuple中
@@ -422,9 +421,11 @@ def cal_one_code_win_lose_day(table_name, code):    # 计算一只股票的支�
         print("Exception: ", str(e))
         conn.rollback()
 
+    #pdb.set_trace()
 
-def cal_one_code_avgcost_and_winpct(table_name, code):    # 计算一只股票的平均成本、获利比例、每一价格处获利比例
-    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+
+def cal_one_code_avgcost_and_winpct(table_name, code):    # 计算一只股票的支撑位和压力位的有效支撑天数和有效压力天数
+    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
     cur = conn.cursor()
 #    code_table = {'6':"pricetable_zb", '0':"pricetable_zxb", '3':"pricetable_cyb"}
 #    table_name = code_table[code[0]]
@@ -440,7 +441,7 @@ def cal_one_code_avgcost_and_winpct(table_name, code):    # 计算一只股票�
     pre_records = []  # 记录每一天的支撑压力有效情况
     sup_records = []
 
- 
+    
     for i in range(1, len(row_date_chip_list)):    # item[0,1,2,3]
         date = row_date_chip_list[i][0]        #日期
         chip = eval(row_date_chip_list[i][1])  #筹码
@@ -465,9 +466,10 @@ def cal_one_code_avgcost_and_winpct(table_name, code):    # 计算一只股票�
                 win_pct = sum(sorted_values[:index])
          
         #  propct_cerprc mediumtext, add profit_pct float, add cost_avg
-        #records = [(str(price_win_pct), win_pct, avg_cost, code, date)]
-        records.append((str(price_win_pct), win_pct, avg_cost, code, date))
+        records = [(str(price_win_pct), win_pct, avg_cost, code, date)]
 
+
+#    pdb.set_trace()
 #        records.append((str(chip), code, str(item[0]).replace('-','')))   # 读取记录，存入tuple中
 #    print(records[-1])
     try:
@@ -477,10 +479,10 @@ def cal_one_code_avgcost_and_winpct(table_name, code):    # 计算一只股票�
 
         if table_name == "pricetable_zxb":
             #db.cursor.executemany("insert into pricetable_zxb (code, tra_date, close) values(%s,%s,%f)", records)
-            cur.executemany("update pricetable_zxb set propct_cerprc=%s, profit_pct=%s, cost_avg=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
+            cur.executemany("update pricetable_zb set propct_cerprc=%s, profit_pct=%s, cost_avg=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
         if table_name == "pricetable_cyb":
             #db.cursor.executemany("insert into pricetable_cyb (code, tra_date, close) values(%s,%s,%f)", records)
-            cur.executemany("update pricetable_cyb set propct_cerprc=%s, profit_pct=%s, cost_avg=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
+            cur.executemany("update pricetable_zxb set presbit_number=%s, supbit_number=%s,total_number=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
         conn.commit()
         print(code, " over")
     except Exception as e:
@@ -489,7 +491,7 @@ def cal_one_code_avgcost_and_winpct(table_name, code):    # 计算一只股票�
 
 
 def cal_one_code_score(table_name, code):    # 计算一只股票的支撑位和压力位的有效支撑天数和有效压力天数
-    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
     cur = conn.cursor()
 #    code_table = {'6':"pricetable_zb", '0':"pricetable_zxb", '3':"pricetable_cyb"}
 #    table_name = code_table[code[0]]
@@ -498,6 +500,7 @@ def cal_one_code_score(table_name, code):    # 计算一只股票的支撑位和
     cur.execute(sql_get_tradates)   # 获得所有交易日
     row_date_chip_list = cur.fetchall()
     
+# 先要增加字段
     
     for item in row_date_chip_list:    # item[0,1,2,3]
         close = item[0]
@@ -506,11 +509,8 @@ def cal_one_code_score(table_name, code):    # 计算一只股票的支撑位和
         tra_date = item[3]
 
         avg = (sup_p + pre_p)/2
-        try:
-            score = 5 + (close - avg)/(sup_p + pre_p)
-        except Exception as e:
-            print(code, tra_date, str(e))
-            score = 5
+        score = 5 + (close - avg)/(sup_p + pre_p)
+        
         
  
         #  propct_cerprc mediumtext, add profit_pct float, add cost_avg
@@ -527,10 +527,10 @@ def cal_one_code_score(table_name, code):    # 计算一只股票的支撑位和
 
         if table_name == "pricetable_zxb":
             #db.cursor.executemany("insert into pricetable_zxb (code, tra_date, close) values(%s,%s,%f)", records)
-            cur.executemany("update pricetable_zxb set score=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
+            cur.executemany("update pricetable_zb set score=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
         if table_name == "pricetable_cyb":
             #db.cursor.executemany("insert into pricetable_cyb (code, tra_date, close) values(%s,%s,%f)", records)
-            cur.executemany("update pricetable_cyb set score=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
+            cur.executemany("update pricetable_zxb set score=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
         conn.commit()
         print(code, " over")
     except Exception as e:
@@ -539,7 +539,7 @@ def cal_one_code_score(table_name, code):    # 计算一只股票的支撑位和
 
 
 def cal_chip_classify(table_name, code):
-    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
     cur = conn.cursor()
 #    code_table = {'6':"pricetable_zb", '0':"pricetable_zxb", '3':"pricetable_cyb"}
 #    table_name = code_table[code[0]]
@@ -585,10 +585,10 @@ def cal_chip_classify(table_name, code):
 
         if table_name == "pricetable_zxb":
             #db.cursor.executemany("insert into pricetable_zxb (code, tra_date, close) values(%s,%s,%f)", records)
-            cur.executemany("update pricetable_zxb set chip_classify=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
+            cur.executemany("update pricetable_zb set chip_classify=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
         if table_name == "pricetable_cyb":
             #db.cursor.executemany("insert into pricetable_cyb (code, tra_date, close) values(%s,%s,%f)", records)
-            cur.executemany("update pricetable_cyb set chip_classify=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
+            cur.executemany("update pricetable_zxb set chip_classify=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
         conn.commit()
         print(code, " over")
     except Exception as e:
@@ -601,13 +601,22 @@ def cal_chip_classify(table_name, code):
 
 if __name__ == '__main__':
     # 第一步，读取pv_table库中table列表，既得股票名称列表
-    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
-    #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
-    #                       db='pv_table', charset='utf8')
+    #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+        
+    try:
+        args = sys.argv[1]    
+    except Exception as e:
+        print("需要指明参数")
+        sys.exit(2)
+    
+    db_name = args    # 获取db名称
+    print(db_name)
+    yes_no = input("确认您要操作的数据库是:  "+ db_name + "  y/n ?")
 
-    # select code, tra_date from pricetable_zb where code = '603999';
-    # select distinct code from pricetable_zb;
+    if yes_no == 'n':
+        sys.exit(2)
 
+    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db=db_name, port=3306, charset='utf8')
     cur = conn.cursor()
 #    sql_get_all_tables = "select code, tra_date, chip, close  from pricetable_zb where code='600000' and tra_date<'20160101'"
 #    cur.execute(sql_get_all_tables)
@@ -642,33 +651,31 @@ if __name__ == '__main__':
 #        pool.close()
 #        pool.join() 
 
-#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$   计算支撑天数和压力天数
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$   计算支撑压力强度
 #    for table in code_table:
-#        pool = multiprocessing.Pool(processes=16)
+#        pool = multiprocessing.Pool(processes=8)
 #        sql_get_tables_from_table = "select distinct code from %s"%table
 #        cur.execute(sql_get_tables_from_table)
 #        row_list_codes = cur.fetchall()
 #        for item in row_list_codes:
-#           pool.apply_async(cal_one_code_win_lose_day, (table, item[0]))     
-#           #cal_one_code_win_lose_day(table, item[0])
+#            pool.apply_async(cal_one_code_win_lose_day, (table, item[0]))     
+            #cal_one_code_win_lose_day(table, item[0])
 #        pool.close()
 #        pool.join() 
 
-#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$   计算 平均成本 每一价格处获利比例  某天得分以及筹码分类
-    for table in code_table:
-        pool = multiprocessing.Pool(processes=16)
-        sql_get_tables_from_table = "select distinct code from %s"%table
-        cur.execute(sql_get_tables_from_table)
-        row_list_codes = cur.fetchall()
-        for item in row_list_codes:
-            #pool.apply_async(cal_one_code_avgcost_and_winpct, (table, item[0]))     
-            #cal_one_code_avgcost_and_winpct(table, item[0])
-            #pool.apply_async(cal_one_code_score, (table, item[0]))     
-            #cal_one_code_score(table, item[0])
-            pool.apply_async(cal_chip_classify, (table, item[0]))     
-            #cal_chip_classify(table, item[0])
-        pool.close()
-        pool.join() 
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$  计算筹码分类
+#    for table in code_table:
+#        pool = multiprocessing.Pool(processes=8)
+#        sql_get_tables_from_table = "select distinct code from %s"%table
+#        cur.execute(sql_get_tables_from_table)
+#        row_list_codes = cur.fetchall()
+#        for item in row_list_codes:
+#            #pool.apply_async(cal_one_code_avgcost_and_winpct, (table, item[0]))     
+#            #cal_one_code_avgcost_and_winpct(table, item[0])
+#            #cal_one_code_score(table, item[0])
+#            cal_chip_classify(table, item[0])
+#        #pool.close()
+#        #pool.join() 
 #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
 
@@ -693,17 +700,16 @@ if __name__ == '__main__':
 
 #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$   格式化chip 
-#    for table in code_table[1:]:
-#        pool = multiprocessing.Pool(processes=8)
-#        sql_get_tables_from_table = "select distinct code from %s"%table
-#        cur.execute(sql_get_tables_from_table)
-#        row_list_codes = cur.fetchall()
-#        for item in row_list_codes:
-#            pool.apply_async(format_chip, (table, item[0]))
-#            #format_chip(table, item[0])               # 增加close字段
-#
-#        pool.close()
-#        pool.join()
+    for table in code_table:
+        pool = multiprocessing.Pool(processes=8)
+        sql_get_tables_from_table = "select distinct code from %s"%table
+        cur.execute(sql_get_tables_from_table)
+        row_list_codes = cur.fetchall()
+        for item in row_list_codes:
+            pool.apply_async(format_chip, (table, item[0]))
+            #format_chip(table, item[0])               # 增加close字段
+        pool.close()
+        pool.join()
 
 
 #    for table in code_table:

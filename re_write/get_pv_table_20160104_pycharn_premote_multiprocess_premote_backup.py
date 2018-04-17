@@ -75,8 +75,7 @@ def sell_prob(pv_table_keys, chip_keys, ratio, date):
     prob = []
     #pdb.set_trace()
     for i in pv_table_keys:
-        tmp = [(j - i) / i for j in chip_keys]  # 每个pv_table_keys中的价格相对于chip_keys中的价格的收益
-        #tmp = [(j - i) / j for j in chip_keys]  # 每个pv_table_keys中的价格相对于chip_keys中的价格的收益
+        tmp = [(j - i) / j for j in chip_keys]  # 每个pv_table_keys中的价格相对于chip_keys中的价格的收益
         prob.append(sum(tmp))
 
     index_positive = []
@@ -139,17 +138,18 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):   # 利用昨天筹码图，当�
         turnover_ratio = float(dddf.loc[int(date), "换手率(%)"]) / 100  # 换手率
         turnover_volume = float(dddf.loc[int(date), "成交量(股)"])  # 成交量
 
-        close_price = round(dddf.loc[int(date), '收盘价(元)'], 2)           # 原来的front_ex_close文件和现在的vol_turnover_test_ex_factor_20180404文件合并，close_price亦写在vol_turnover_test_ex_factor_20180404中, 有些价格是有四位有效数字，需要保留2位 价格已经是前复权价格 
+        close_price = round(dddf.loc[int(date), '收盘价(元)'], 2)           # 原来的front_ex_close文件和现在的vol_turnover_test_ex_factor_20180404文件合并，close_price亦写在vol_turnover_test_ex_factor_20180404中, 有些价格是有四位有效数字，需要保留2位 
 
         # market_cap = turnover_volume / turnover_ratio
 
-        pv_table = {}   # 传进来的tmp_pv_table的key, value是str类型
+        pv_table = {}   # 传进来的tmp_pv_table的key是str类型
         for key, value in tmp_pv_table.items():
             pv_table[float(key)] = float(value)
 
         
 
-        price = [round(i/ex_factor, 2) for i in list(ddf["Price"] / 10000)]     # 除以cum_factor, 比如从20160104之后只分红过两次，一次是16年6月17，一次是17年7月16，则cum_factor 等于这两次的除权因子的乘积。参加300299.
+        price = [round(i/ex_factor, 2) for i in list(ddf["Price"] / 10000)]
+        #price = list(ddf["Price"] / 10000)     # 除以cum_factor, 比如从20160104之后只分红过两次，一次是16年6月17，一次是17年7月16，则cum_factor 等于这两次的除权因子的乘积。参加300299.
         volume = [i * turnover_ratio / turnover_volume for i in list(ddf["Volume"])]
         chip = dict(zip(price, volume))  # 直接形成chip表
         #if ddf["TotalTx"].sum() == 0:
@@ -157,8 +157,7 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):   # 利用昨天筹码图，当�
         ratio = ddf["Will"].sum() / ddf["TotalTx"].sum()
         # if pv_table:  # 根据分价表更新当天的筹码分布图
         # 分价表的数据是无关乎除权复权的，因此需要先检查筹码分布表
-        
-        # 存量计算，筹码不除权，分价表除权， 增量计算，筹码除权，分价表不除权
+
 #        if ex_factor != 1:
 #            tmp = {v: k for k, v in pv_table.items()}  # pv_table 和value 反过来
 #            ttmp = {k: v / ex_factor for k, v in tmp.items()}  # 调整除权
@@ -201,7 +200,7 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):   # 利用昨天筹码图，当�
 
         pv_table = {}
         for key, value in pv_table_adj.items():
-            pv_table[str(round(float(key), 2))] = str("%.8f"%float(value)) 
+            pv_table[str(round(float(key), 2))] = str("%.8f"%float(value))
         
 
         return pv_table, close_price
@@ -224,7 +223,6 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):   # 利用昨天筹码图，当�
     
 
 def new_write_onestock(item, date):
-    
     code_table = {'6': "pricetable_zb", '0': "pricetable_zxb", '3': "pricetable_cyb"}
     code_name = str(item)[1:len(str(item))]  # 1600000 -> "600000"
     if code_name == "601313" and int(date) < 20180228:    # code_name 是需要去检查是否存在该股票，所以是601360  item是从pricetable中来，pricetable中在20180228之前都是601313
@@ -252,7 +250,7 @@ def new_write_onestock(item, date):
     
     #sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/" + item)
     
-    #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+    #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
     conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
     cur = conn.cursor()
     pricetable = code_table[code_name[0]]  # 根据code_table  dict获得是那一张表
@@ -337,7 +335,8 @@ def cal_or_not(item, sum_df, date):
         if min(ddf["Price"]) / 10000 < 1000:     # 指数 1000016   以及个股2000016 二者只有通过价格来区分，指数价格高于1000
             if item != 2000916:    # 000916华北高速换股成招商公路
                 return True
-    
+   
+ 
     return False
 
 
@@ -385,7 +384,6 @@ def new_write_oneday_pricetable(sum_df, date):
             records_cyb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]), str(result.get()[4])))
  
     conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
-    #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
     cur = conn.cursor()
     
     #pdb.set_trace()
@@ -451,7 +449,7 @@ if __name__ == '__main__':
         
 
 #    with getPTConnection() as db:    
-    for item in files_name:          # 一个pricetable是一个循环，一次计算完一个pricetable
+    for item in files_name[:10]:          # 一个pricetable是一个循环，一次计算完一个pricetable
         print(item)
         date = item[0:8]  # 20160104
         sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/" + item)

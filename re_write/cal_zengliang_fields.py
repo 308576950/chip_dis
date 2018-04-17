@@ -352,75 +352,121 @@ def cal_one_code_sp_price(code):    # 计算一只股票的支撑位和压力位
         print(code, " 在20160101之前无数据")
 
  
-def cal_one_code_win_lose_day(table_name, code):    # 计算一只股票的支撑位和压力位的有效支撑天数和有效压力天数
+def cal_one_code_zengliang_fields_day(table_name, code, tra_date):    # 计算一只股票的支撑位和压力位的有效支撑天数和有效压力天数
     conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+#    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
     cur = conn.cursor()
 #    code_table = {'6':"pricetable_zb", '0':"pricetable_zxb", '3':"pricetable_cyb"}
 #    table_name = code_table[code[0]]
     records = []
-    sql_get_tradates = "select tra_date, close, pre_p, sup_p from %s where code = '%s' and tra_date>'20160101'" % (table_name, code)
-    cur.execute(sql_get_tradates)   # 获得所有交易日
-    row_date_chip_list = cur.fetchall()
-    
-    # close 需要取第二天
-
-# 先要增加字段
-
-    file_name = {'6':'.SH.CSV', '0':".SZ.CSV", '3':".SZ.CSV"}    
-    
-    pre_records = []  # 记录每一天的支撑压力有效情况
-    sup_records = []
-
-    
-    for i in range(0, len(row_date_chip_list)-1):    # item[0,1,2,3]
-        date = row_date_chip_list[i][0]
-        close = row_date_chip_list[i+1][1]     #close 需要取第二天的 
-        pre_p = row_date_chip_list[i][2]
-        sup_p = row_date_chip_list[i][3]            
-
-        if close <= pre_p:
-            pre_records.append(1)
-        else:
-            pre_records.append(0)
-    
-        if close >= sup_p:
-            sup_records.append(1)
-        else:
-            sup_records.append(0)
-
-    pre_records = [1] + pre_records
-    sup_records = [1] + sup_records
-
-    pre_yes = []
-    sup_yes = []
-
-    for i in range(len(pre_records)):
-        pre_yes.append(sum(pre_records[0:i]))   # 比如[1,0,1,1,1,0,1]  
-        sup_yes.append(sum(sup_records[0:i]))
-
-
-    #pdb.set_trace()
-    records = [(pre_yes[i], sup_yes[i], i+1, code, row_date_chip_list[i][0]) for i in range(len(row_date_chip_list))]
-
-
-#        records.append((str(chip), code, str(item[0]).replace('-','')))   # 读取记录，存入tuple中
-#    print(records[-1])
+    sql_get_close = "select close, chip from %s where code = '%s' and tra_date='%s'" % (table_name, code, tra_date)
+    cur.execute(sql_get_close)   # 获得收盘价，和前日支撑压力位对比，更新有效支撑天数和有效压力天数
+    results = cur.fetchone()
+    close = results[0]
+    chip = eval(results[1])
+       
+    sql_get_pre_pre_sup = "select pre_p, sup_p, total_number, presbit_number, supbit_number from %s where code = '%s' and tra_date<'%s' order by tra_date desc limit 1" % (table_name, code, tra_date)
+    cur.execute(sql_get_pre_pre_sup)    # 前一日支撑位、压力位、总次数、压力次数和支撑次数
+    results = cur.fetchone()
     try:
-        if table_name == "pricetable_zb":
-            #db.cursor.executemany("insert into pricetable_zb (code, tra_date, close) values(%s,%s,%f)", records)
-            cur.executemany("update pricetable_zb set presbit_number=%s, supbit_number=%s,total_number=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
+        pre_pre_p = results[0]
+        pre_sup_p = results[1]
+        total_number = results[2]
+        presbit_number = results[3]
+        supbit_number = results[4]
 
-        if table_name == "pricetable_zxb":
-            #db.cursor.executemany("insert into pricetable_zxb (code, tra_date, close) values(%s,%s,%f)", records)
-            cur.executemany("update pricetable_zxb set presbit_number=%s, supbit_number=%s,total_number=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
-        if table_name == "pricetable_cyb":
-            #db.cursor.executemany("insert into pricetable_cyb (code, tra_date, close) values(%s,%s,%f)", records)
-            cur.executemany("update pricetable_cyb set presbit_number=%s, supbit_number=%s,total_number=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
+        if close > pre_sup_p:
+            supbit_number += 1
+        if close < pre_pre_p:
+            presbit_number += 1
+        total_number += 1
+    except Exception as e:
+        print("错误: ", str(e))
+        supbit_number = 1
+        presbit_number = 1
+        total_number = 1
+##############################################  以上是计算支撑天数和压力天数
+
+    avg_cost = 0
+    tmp_chip = {}
+    for key, value in chip.items():
+        avg_cost = avg_cost + float(key) * float(value)
+        tmp_chip[float(key)] = float(value)
+    ttmp_chip = [(k,tmp_chip[k]) for k in sorted(tmp_chip.keys())]
+    sorted_keys = [item[0] for item in ttmp_chip]                      #list(ttmp_chip.keys())
+    sorted_values = [item[1] for item in ttmp_chip]                 #list(ttmp_chip.values())
+
+    price_win_pct = []           # 某一价格获利比例
+    win_pct = 0                  # 获利比例
+
+    for key,value in chip.items():
+        index = sorted_keys.index(float(key))
+        sum_zhanbi = sum(sorted_values[:index])
+        price_win_pct.append(sum_zhanbi)
+        if round(float(key),2) == close:
+            win_pct = sum(sorted_values[:index])
+
+    #  propct_cerprc mediumtext, add profit_pct float, add cost_avg
+    #records = [(str(price_win_pct), win_pct, avg_cost, code, date)]
+    #records.append((str(price_win_pct), win_pct, avg_cost, code, date))
+######################################################################### 以上是计算price_win_pct win_pct avg_cost 
+    sql_get_sup_pre = "select sup_p, pre_p, close from %s where code = '%s' and tra_date='%s'" % (table_name, code, tra_date)
+    cur.execute(sql_get_sup_pre)   # 获得所有交易日
+    results = cur.fetchone()
+
+    sup_p = results[0]
+    pre_p = results[1]
+    close = results[2]
+   
+ 
+    avg = (sup_p + pre_p)/2
+    try:
+        score = 5 + (close - avg)/(sup_p + pre_p)
+    except Exception as e:
+        print(code, tra_date, str(e))
+        score = 5
+
+    avg_p = 0
+    sum_below_close = 0
+    for key,value in chip.items():
+        avg_p += float(key) * float(value)
+        if float(key) <= close:
+            sum_below_close += float(value)    # sum_below_close是在close之下的筹码占比和
+
+    chip_classify = 2
+
+    if avg_p < close * 0.9 and sum_below_close >= 0.6:   # 向下集中
+        chip_classify = 3
+    if avg_p > close * 1.1 and 1-sum_below_close >= 0.6: # 向上集中
+        chip_classify = 1;
+
+##############################################################################   以上是score和chip_classify的计算
+    sql_add_fields = "update %s set presbit_number=%s, supbit_number=%s,total_number=%s, propct_cerprc='%s', profit_pct=%s, cost_avg=%s, score=%s, chip_classify=%s  where code='%s' and tra_date='%s'"%(table_name, presbit_number, supbit_number, total_number, str(price_win_pct), win_pct, avg_cost, score, chip_classify, code, tra_date)
+    try:
+        cur.execute(sql_add_fields)
         conn.commit()
         print(code, " over")
     except Exception as e:
         print("Exception: ", str(e))
         conn.rollback()
+
+#    try:
+#        if table_name == "pricetable_zb":
+#            #db.cursor.executemany("insert into pricetable_zb (code, tra_date, close) values(%s,%s,%f)", records)
+#            #cur.execute("update pricetable_zb set presbit_number=%s, supbit_number=%s,total_number=%s, propct_cerprc=%s, profit_pct=%s, cost_avg=%s, score=%s, chip_classify=%s  where code=%s and tra_date=%s"%(presbit_number, supbit_number, total_number, str(price_win_pct), win_pct, avg_cost, score, chip_classify, code, tra_date)) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
+#            cur.execute()
+#
+#        if table_name == "pricetable_zxb":
+#            #db.cursor.executemany("insert into pricetable_zxb (code, tra_date, close) values(%s,%s,%f)", records)
+#            #cur.execute("update pricetable_zxb set presbit_number=%s, supbit_number=%s,total_number=%s, propct_cerprc=%s, profit_pct=%s, cost_avg=%s, score=%s, chip_classify=%s  where code=%s and tra_date=%s"%(presbit_number, supbit_number, total_number, str(price_win_pct), win_pct, avg_cost, score, chip_classify, code, tra_date)) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
+#        if table_name == "pricetable_cyb":
+#            #db.cursor.executemany("insert into pricetable_cyb (code, tra_date, close) values(%s,%s,%f)", records)
+#            #cur.execute("update pricetable_cyb set presbit_number=%s, supbit_number=%s,total_number=%s, propct_cerprc=%s, profit_pct=%s, cost_avg=%s, score=%s, chip_classify=%s  where code=%s and tra_date=%s"%(presbit_number, supbit_number, total_number, str(price_win_pct), win_pct, avg_cost, score, chip_classify, code, tra_date)) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
+#        conn.commit()
+#        print(code, " over")
+#    except Exception as e:
+#        print("Exception: ", str(e))
+#        conn.rollback()
 
 
 def cal_one_code_avgcost_and_winpct(table_name, code):    # 计算一只股票的平均成本、获利比例、每一价格处获利比例

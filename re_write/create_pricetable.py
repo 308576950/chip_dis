@@ -69,6 +69,51 @@ def create_pricetable():
         print("Exception: ", str(e))
     print("Three tables created over")
 
+def create_ge_gu_zhen_duan_table():
+    #conn = pymysql.connect(host='172.16.20.103', user='JRJ_pv_table', passwd='9JEhCpbeu3YXxyNpFDVQ', port=3308,
+    #                       db='pv_table', charset='utf8')
+    conn=pymysql.connect(host='127.0.0.1',user='root',passwd='passw0rd',db="pv_table", port=3306,charset='utf8')
+    cur = conn.cursor()
+    try:
+        sql_create_table = '''
+        CREATE TABLE if not exists sup_pre_odds(
+                        level int,                   # 等级
+                        high_limit float,            # 区间上限
+                        low_limit float,             # 区间下限
+                        odds float,                  # 区间胜率
+                        primary key (level)          # 主键
+        );
+        '''
+        cur.execute(sql_create_table)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Exception: ", str(e))
+
+def create_chou_ma_shenglv_table():
+    #conn = pymysql.connect(host='172.16.20.103', user='JRJ_pv_table', passwd='9JEhCpbeu3YXxyNpFDVQ', port=3308,
+    #                       db='pv_table', charset='utf8')
+    conn=pymysql.connect(host='127.0.0.1',user='root',passwd='passw0rd',db="pv_table", port=3306,charset='utf8')
+    cur = conn.cursor()
+    try:
+        sql_create_table = '''
+        CREATE TABLE if not exists chip_odds(
+                        level int,                   # 等级
+                        up_down int,                 # 筹码向上或者是向下 1 0 -1
+                        concentration float,         # 集中度
+                        close_distabce float,        # 距离收盘价距离
+                        odds float,                  # 该形态胜率
+                        primary key (level)          # 主键
+        );
+        '''
+        cur.execute(sql_create_table)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Exception: ", str(e))
+
+
+
 
 def transfer(table_name, row):
 #    conn = pymysql.connect(host='172.16.20.103', user='JRJ_pv_table', passwd='9JEhCpbeu3YXxyNpFDVQ', port=3308,
@@ -126,23 +171,27 @@ if __name__ == '__main__':
     # initial_info = pd.read_csv("./initial_info.csv", encoding='gbk', index_col=0)   # 获得所有股票的ipo时间
 
     #create_pricetable()
+    
+    create_ge_gu_zhen_duan_table()
+    create_chou_ma_shenglv_table()     
 
+    
     #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='', db="pv_table", port=3306, charset='utf8')
-    conn = pymysql.connect(host='172.16.20.103', user='JRJ_pv_table', passwd='9JEhCpbeu3YXxyNpFDVQ', port=3308,
-                           db='pv_table', charset='utf8')
-
-    table_name_lists = []
-    cur = conn.cursor()
-    cur.execute("show tables")
-    tuple_databases = cur.fetchall()
-    for item in tuple_databases:
-        table_name_lists.append(item[0])  # get all databases;
-    #pdb.set_trace()
-    # print(db_name_lists)
-    #print(len(table_name_lists))
-    for item in table_name_lists[10:]:
-        if item[0] == "s":
-            sql = "select Tra_Date, Chip from %s"%(item)
-            cur.execute(sql)
-            row = cur.fetchall()
-            transfer(item, row)
+#    conn = pymysql.connect(host='172.16.20.103', user='JRJ_pv_table', passwd='9JEhCpbeu3YXxyNpFDVQ', port=3308,
+#                           db='pv_table', charset='utf8')
+#
+#    table_name_lists = []
+#    cur = conn.cursor()
+#    cur.execute("show tables")
+#    tuple_databases = cur.fetchall()
+#    for item in tuple_databases:
+#        table_name_lists.append(item[0])  # get all databases;
+#    #pdb.set_trace()
+#    # print(db_name_lists)
+#    #print(len(table_name_lists))
+#    for item in table_name_lists[10:]:
+#        if item[0] == "s":
+#            sql = "select Tra_Date, Chip from %s"%(item)
+#            cur.execute(sql)
+#            row = cur.fetchall()
+#            transfer(item, row)
