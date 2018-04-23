@@ -403,6 +403,19 @@ def new_write_onestock(item, date):
 # 决定该代码是否需要写入的函数，因为有的代码可能是基金或者指数
 def cal_or_not(item, sum_df, date):
 
+    if str(item)[0] == '1':
+        if str(item)[1] != '6':
+            return False
+    if str(item)[0] == '2':
+        if str(item)[1] not in ['0','3']:
+            return False
+    if str(item)[0:2] == '20':
+        if str(item)[2] != '0':
+            return False
+    if str(item)[0:2] == '23':
+        if str(item)[2] != '0':
+            return False
+
     code_name = str(item)[1:len(str(item))]  # 1600000 -> "600000"
 
     # if code_name[0] == '6':  # 有501050这样的基金，也有000300这样的指数

@@ -9,8 +9,8 @@ import datetime
 def create_pricetable():
     #conn = pymysql.connect(host='172.16.20.103', user='JRJ_pv_table', passwd='9JEhCpbeu3YXxyNpFDVQ', port=3308,
     #                       db='pv_table', charset='utf8')
-    conn=pymysql.connect(host='127.0.0.1',user='root',passwd='',db="pv_table", port=3306,charset='utf8')
-    cur = conn.cursor()
+    #conn=pymysql.connect(host='127.0.0.1',user='root',passwd='',db="pv_table", port=3306,charset='utf8')
+    #cur = conn.cursor()
     try:
         sql_create_table_zb = '''
         CREATE TABLE if not exists pricetable_zb(
@@ -22,7 +22,17 @@ def create_pricetable():
                         close float,
                         pre_effort float,
                         sup_effort float,
-                        primary key (code,tra_date)
+                        primary key (code,tra_date),
+                        total_number int, 
+                        supbit_number int, 
+                        presbit_number int, 
+                        propct_cerprc mediumtext, 
+                        profit_pct float, 
+                        cost_avg float, 
+                        score float,
+                        chip_classify int,
+                        index (code),
+                        index (tra_date)
         );
         '''
         cur.execute(sql_create_table_zb)
@@ -41,7 +51,17 @@ def create_pricetable():
                         close float,
                         pre_effort float,
                         sup_effort float,
-                        primary key (code,tra_date)
+                        primary key (code,tra_date),
+                        total_number int, 
+                        supbit_number int, 
+                        presbit_number int, 
+                        propct_cerprc mediumtext, 
+                        profit_pct float, 
+                        cost_avg float, 
+                        score float,
+                        chip_classify int,
+                        index (code),
+                        index (tra_date)
         );
         '''
         cur.execute(sql_create_table_zxb)
@@ -60,7 +80,17 @@ def create_pricetable():
                         close float,
                         pre_effort float,
                         sup_effort float,
-                        primary key (code,tra_date)
+                        primary key (code,tra_date),
+                        total_number int, 
+                        supbit_number int, 
+                        presbit_number int, 
+                        propct_cerprc mediumtext, 
+                        profit_pct float, 
+                        cost_avg float, 
+                        score float,
+                        chip_classify int,
+                        index (code),
+                        index (tra_date)
         );
         '''
         cur.execute(sql_create_table_cyb)
@@ -118,9 +148,9 @@ def create_chou_ma_shenglv_table():
 def transfer(table_name, row):
 #    conn = pymysql.connect(host='172.16.20.103', user='JRJ_pv_table', passwd='9JEhCpbeu3YXxyNpFDVQ', port=3308,
 #                           db='pv_table', charset='utf8')
-#    #conn=pymysql.connect(host='127.0.0.1',user='root',passwd='',db="pv_table", port=3306,charset='utf8')
-#    #cur = conn.cursor()
-#
+    conn=pymysql.connect(host='127.0.0.1',user='root',passwd='',db="", port=3306,charset='utf8')
+    cur = conn.cursor()
+    cur.execute("create database if not exists pv_table_backup")
 #    sql = "select Tra_Date, Chip from %s"%(table_name)
 #    cur.execute(sql)
 #    row = cur.fetchall()
@@ -169,11 +199,17 @@ if __name__ == '__main__':
     # list_tra_date = json.loads(html_tra_date.decode('utf-8'))['data']
     #
     # initial_info = pd.read_csv("./initial_info.csv", encoding='gbk', index_col=0)   # 获得所有股票的ipo时间
-
-    #create_pricetable()
+    conn=pymysql.connect(host='127.0.0.1',user='root',passwd='passw0rd',db="", port=3306,charset='utf8')
+    cur = conn.cursor()
+    cur.execute("create database if not exists pv_table_backup")
     
-    create_ge_gu_zhen_duan_table()
-    create_chou_ma_shenglv_table()     
+    conn=pymysql.connect(host='127.0.0.1',user='root',passwd='passw0rd',db="pv_table_backup", port=3306,charset='utf8')
+    cur = conn.cursor()
+
+    create_pricetable()
+    
+    #create_ge_gu_zhen_duan_table()
+    #create_chou_ma_shenglv_table()     
 
     
     #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='', db="pv_table", port=3306, charset='utf8')

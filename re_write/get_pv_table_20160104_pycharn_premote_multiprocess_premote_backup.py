@@ -170,7 +170,18 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):   # 利用昨天筹码图，当�
         probb = sell_prob(pv_table_keys, chip_keys, ratio, date)
 
         pv_table_values = list(pv_table.values())
-        probb_1 = [0.5 * probb[i] + 0.5 * pv_table_values[i] for i in range(0, len(probb))]
+
+
+        #to_pct = turnover_ratio * 100
+        #to_wegt = {'0': 0.9, '1': }
+        #if turnover_ratio <  :    
+        #    weight = 0.1
+        #else:
+        #    weigtt = turnover_ratio 
+        weight = 1 - turnover_ratio
+
+
+        probb_1 = [(1-weight) * probb[i] + weight * pv_table_values[i] for i in range(0, len(probb))]    # weight和换手率正相关，对应的应该是随机部分的比例，因为有了收益的期望，所以会导致换手率降低
 
         for i in range(0, len(pv_table)):
             key = list(pv_table.keys())[i]
@@ -313,6 +324,21 @@ def new_write_onestock(item, date):
     # records.append((code_name, date, str(today_pvtable)))   # 名称，日期，筹码  把单个pricetable中的所有股票都记录在一个list中，然后一次写入
 
 def cal_or_not(item, sum_df, date):
+
+    if str(item)[0] == '1':
+        if str(item)[1] != '6':
+            return False
+    if str(item)[0] == '2':
+        if str(item)[1] not in ['0','3']:
+            return False
+    if str(item)[0:2] == '20':
+        if str(item)[2] != '0':
+            return False
+    if str(item)[0:2] == '23':
+        if str(item)[2] != '0':
+            return False
+
+
     code_name = str(item)[1:len(str(item))]  # 1600000 -> "600000"
 #    if code_name == "601313":    # code_name 是需要去检查是否存在该股票，所以是601360
 #        code_name = "601360"
@@ -449,7 +475,7 @@ if __name__ == '__main__':
         
 
 #    with getPTConnection() as db:    
-    for item in files_name[:10]:          # 一个pricetable是一个循环，一次计算完一个pricetable
+    for item in files_name:          # 一个pricetable是一个循环，一次计算完一个pricetable
         print(item)
         date = item[0:8]  # 20160104
         sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/" + item)

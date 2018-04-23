@@ -545,7 +545,8 @@ def cal_chip_classify(table_name, code):
 #    code_table = {'6':"pricetable_zb", '0':"pricetable_zxb", '3':"pricetable_cyb"}
 #    table_name = code_table[code[0]]
     records = []
-    sql_get_tradates = "select chip, close, tra_date  from %s where code = '%s' and tra_date>'20180401'" % (table_name, code)
+    sql_get_tradates = "select chip, close, tra_date  from %s where code = '%s' and tra_date>'201i60101'" % (table_name, code)
+
     cur.execute(sql_get_tradates)   # 获得所有交易日
     row_date_chip_list = cur.fetchall()
     
@@ -643,16 +644,16 @@ if __name__ == '__main__':
 #        pool.join() 
 
 #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$   计算支撑压力强度
-    for table in code_table:
-        pool = multiprocessing.Pool(processes=16)
-        sql_get_tables_from_table = "select distinct code from %s"%table
-        cur.execute(sql_get_tables_from_table)
-        row_list_codes = cur.fetchall()
-        for item in row_list_codes:
-            pool.apply_async(cal_one_code_win_lose_day, (table, item[0]))     
-           #cal_one_code_win_lose_day(table, item[0])
-        pool.close()
-        pool.join() 
+#    for table in code_table:
+#        pool = multiprocessing.Pool(processes=16)
+#        sql_get_tables_from_table = "select distinct code from %s"%table
+#        cur.execute(sql_get_tables_from_table)
+#        row_list_codes = cur.fetchall()
+#        for item in row_list_codes:
+#            pool.apply_async(cal_one_code_win_lose_day, (table, item[0]))     
+#           #cal_one_code_win_lose_day(table, item[0])
+#        pool.close()
+#        pool.join() 
 
 #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$   计算筹码分类
     for table in code_table:
@@ -662,8 +663,8 @@ if __name__ == '__main__':
         row_list_codes = cur.fetchall()
         for item in row_list_codes:
             #pool.apply_async(cal_one_code_avgcost_and_winpct, (table, item[0]))     
-            cal_one_code_avgcost_and_winpct(table, item[0])
-            cal_one_code_score(table, item[0])
+#            cal_one_code_avgcost_and_winpct(table, item[0])
+#            cal_one_code_score(table, item[0])
             cal_chip_classify(table, item[0])
         pool.close()
         pool.join() 

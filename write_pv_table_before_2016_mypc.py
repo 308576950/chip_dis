@@ -122,7 +122,7 @@ def write_mysql(iitem):
 #    if iitem not in table_name_lists:
     df = pd.read_csv("/data/stocks_close_price/stocks_close_price/" + iitem, encoding='gbk', usecols=[0, 1, 2, 3, 4],index_col=2)
     close_price = df["收盘价(元)"]
-    df["收盘价(元)"] = close_price.round(2)
+    df["收盘价(元)"] = close_price.round(2)    # 保留两位小数
     df["pv_table"] = ""
     tmp_dict = {}
     price_time = {}
@@ -217,7 +217,7 @@ if __name__ == '__main__':
 #    write_mysql(last_one)
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@2
 #   futures = set()
-    with ProcessPoolExecutor(4) as executor:
+    with ProcessPoolExecutor(8) as executor:
         for iitem in files_name[0]:
             executor.submit(write_mysql, iitem)
 #            future = write_mysql(iitem)

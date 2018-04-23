@@ -238,8 +238,14 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
         # pdb.set_trace()
         probb = sell_prob(pv_table_keys, chip_keys, ratio, date)
 
+
         pv_table_values = list(pv_table.values())
-        probb_1 = [0.5 * probb[i] + 0.5 * pv_table_values[i] for i in range(0, len(probb))]
+
+        weight = 1 - turnover_ratio
+        probb_1 = [(1-weight) * probb[i] + weight * pv_table_values[i] for i in range(0, len(probb))]    # weight和换手率正相关，对应的应该是随机部分的比例，因为有了收益的期望，所以会导致换手率降低
+
+
+#        probb_1 = [0.5 * probb[i] + 0.5 * pv_table_values[i] for i in range(0, len(probb))]
 
         for i in range(0, len(pv_table)):
             key = list(pv_table.keys())[i]
@@ -402,6 +408,21 @@ def new_write_onestock(item, date):
 
 # 决定该代码是否需要写入的函数，因为有的代码可能是基金或者指数
 def cal_or_not(item, sum_df, date):
+
+    if str(item)[0] == '1':
+        if str(item)[1] != '6':
+            return False
+    if str(item)[0] == '2':
+        if str(item)[1] not in ['0','3']:
+            return False
+    if str(item)[0:2] == '20':
+        if str(item)[2] != '0':
+            return False
+    if str(item)[0:2] == '23':
+        if str(item)[2] != '0':
+            return False
+
+
 
     code_name = str(item)[1:len(str(item))]  # 1600000 -> "600000"
 

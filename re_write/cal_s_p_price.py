@@ -544,7 +544,8 @@ def cal_chip_classify(table_name, code):
 #    code_table = {'6':"pricetable_zb", '0':"pricetable_zxb", '3':"pricetable_cyb"}
 #    table_name = code_table[code[0]]
     records = []
-    sql_get_tradates = "select chip, close, tra_date  from %s where code = '%s' and tra_date>'20180401'" % (table_name, code)
+    #sql_get_tradates = "select chip, close, tra_date  from %s where code = '%s' and tra_date>'20180401'" % (table_name, code)
+    sql_get_tradates = "select chip, close, tra_date  from %s where code = '%s' and tra_date>'20160101'" % (table_name, code)
     cur.execute(sql_get_tradates)   # 获得所有交易日
     row_date_chip_list = cur.fetchall()
     
@@ -590,7 +591,7 @@ def cal_chip_classify(table_name, code):
             #db.cursor.executemany("insert into pricetable_cyb (code, tra_date, close) values(%s,%s,%f)", records)
             cur.executemany("update pricetable_cyb set chip_classify=%s where code=%s and tra_date=%s", records) #%(records[0][2], records[0][0], str(records[0][1]).replace('-','')))
         conn.commit()
-        print(code, " over")
+        print(code,' cal chip classify ', " over")
     except Exception as e:
         print("Exception: ", str(e))
         conn.rollback()
