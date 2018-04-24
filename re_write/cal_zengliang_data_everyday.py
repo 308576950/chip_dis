@@ -22,6 +22,10 @@ import numpy as np
 from heapq import nlargest
 import sys
 from cal_zengliang_fields import cal_one_code_zengliang_fields_day
+import smtplib
+from email.mime.text import MIMEText
+
+
 
 filterwarnings('ignore', category=pymysql.Warning)
 
@@ -525,7 +529,10 @@ if __name__ == '__main__':
     last_day = str(row).replace('-', '')    # '2016-01-04' -->  20160104
 
     index = pricetabl_dates.index(last_day)
+    
 
+
+    
 #    sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/20180228_pricetable.csv")    # 读取下载的CSV
     for i in range(index + 1, len(pricetabl_dates)):
     #for i in range(index + 1, index + 2):
@@ -541,7 +548,28 @@ if __name__ == '__main__':
 
        # 计算完chip之后再计算支撑天数，压力天数，获利比例，得分、筹码分类等等
 
+    if pricetable_dates[-1] == str(last_day).replace('-',''):     # 如果没有新的pricetable
+        msg_from='308576950@qq.com'                                 #发送方邮箱
+        passwd='qsqogriaepdxbghj'     #填入发送方邮箱的授权码  授权码可能有一个有效期
+        msg_to='fan.mei@jrj.com.cn'                                  #收件人邮箱
 
+        subject='no data alert'                                     #主题     
+        content='no data today'
+        msg = MIMEText(content)
+        msg['Subject'] = subject
+        msg['From'] = msg_from
+        msg['To'] = msg_to
+        try:
+            s = smtplib.SMTP_SSL("smtp.qq.com",465)
+            s.login(msg_from, passwd)
+            s.sendmail(msg_from, msg_to, msg.as_string())
+            print("发送成功")
+        except Exception as e:
+            print("发送失败")
+#        finally:
+#            s.quit()
+#            print("Error: 无法发送邮件")
+ 
 
 
 # if __name__ == '__main__':
