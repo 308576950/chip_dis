@@ -23,8 +23,8 @@ if __name__ == '__main__':
                tra_date = str(item[0]).replace('-','')
                cur1.execute("select * from %s where tra_date=%s"%(table_name, tra_date))
                results = []
-               for item in cur1.fetchall():
-                   results.append(item)
+               for iitem in cur1.fetchall():
+                   results.append(iitem)
                #cur.executemany("insert into pricetable_cyb_20180418 values (%s, %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", results)             
                try:
                    if table_name == 'pricetable_zb':
@@ -33,7 +33,7 @@ if __name__ == '__main__':
                        cur.executemany("insert into pricetable_zxb values (%s, %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", results)         
                    if table_name == 'pricetable_cyb':
                        cur.executemany("insert into pricetable_cyb values (%s, %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", results)         
-                   print(item, " over")
+                   print(item[1], " over")
                except Exception as e:
                    print(str(e))
                    conn.roolback()

@@ -24,7 +24,7 @@ import sys
 from cal_zengliang_fields import cal_one_code_zengliang_fields_day
 import smtplib
 from email.mime.text import MIMEText
-
+import tushare as ts
 
 
 filterwarnings('ignore', category=pymysql.Warning)
@@ -189,17 +189,36 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
         conn = pymysql.connect(host='10.77.4.65', user='fan.mei', passwd='68d96f5ec3', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
         cur = conn.cursor()
  
-        cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='%s' and enddate='%s'"%(code, date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 
-        row = cur.fetchone()
-        #if code == '601360':         #巨灵数据库在20180228之后将601313变更成了601360
-        #    pdb.set_trace()
-        if not row:
-            if code == '601360':
-                cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='601313' and enddate='%s'"%(date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 
-                row = cur.fetchone()
+        #cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='%s' and enddate='%s'"%(code, date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 
+#        cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='%s' and enddate='%s'"%(code, date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 
+#        row = cur.fetchone()
+#        #if code == '601360':         #巨灵数据库在20180228之后将601313变更成了601360
+#        #    pdb.set_trace()
+#        if not row:
+#            if code == '601360':
+#                cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='601313' and enddate='%s'"%(date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 
+#                row = cur.fetchone()
+#
+#
+#       
+#        if not row[1]:
+#            ts_date = date[0:4] + '-' + date[4:6] + '-' + date[6:] 
+#            turnover_volume = ts.get_hist_data(code,start=ts_date,end=ts_date)['volume'].values[0] * 100 
+#        else:    
+#            turnover_volume = float(row[1])
+#        
+#        if not row[0]:
+#            ts_date = date[0:4] + '-' + date[4:6] + '-' + date[6:]
+#            turnover_ratio = ts.get_hist_data(code,start=ts_date,end=ts_date)['turnover'].values[0] / 100   # 得出的turnover_ratio = 0.06  实际是 0.06%
+#        else:
+#            turnover_ratio = float(row[0]) / 100
+#
+        cur.execute("select FL_ASHR from  STK_SHR_STRU where A_STOCKCODE=%s order by DECLAREDATE desc limit 1"%code)
+        row_get_liutongguben = cur.fetchone()
 
-        turnover_ratio = float(row[0]) / 100
-        turnover_volume = float(row[1])
+        liutongguben = float(row_get_liutongguben[0])
+
+        turnover_ratio = ddf["TotalTx"].sum() / liutongguben
 
         # ex_factor = dddf.loc[int(date), "复权因子"]
         url = "http://fintech.jrj.com.cn/tp/astock/getfactor?code=%s&date=%s" % (code, date_)      # 注意  取复权因子需要前一天
@@ -222,7 +241,7 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
 
 
         price = list(ddf["Price"] / 10000)  # 除以cum_factor, 比如从20160104之后只分红过两次，一次是16年6月17，一次是17年7月16，则cum_factor 等于这两次的除权因子的乘积。参加300299.
-        volume = [i * turnover_ratio / turnover_volume for i in list(ddf["Volume"])]
+        volume = [i  / liutongguben for i in list(ddf["Volume"])]
         chip = dict(zip(price, volume))  # 直接形成chip表
         # if ddf["TotalTx"].sum() == 0:
         #    ratio =
@@ -245,6 +264,8 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
         pv_table_values = list(pv_table.values())
         probb_1 = [0.5 * probb[i] + 0.5 * pv_table_values[i] for i in range(0, len(probb))]
 
+
+
         for i in range(0, len(pv_table)):
             key = list(pv_table.keys())[i]
             # pv_table[key] = (1 - turnover_ratio * probb[i]) * pv_table[key]   # 这里可以改进，筹码并不是真得按照换手率等比例分布的，应该是越接近该价格的越容易卖出，越远离该价格的不容易卖出
@@ -260,7 +281,6 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
                 pv_table[key] = pv_table[key] + value  # 今天成交的筹码加上之前剩下的筹码
 
         ### 处理pv_tables中某些value为负数的情况
-        market_cap = turnover_volume / turnover_ratio
         threshold = 0.00001  # 阈值定义为100股对应的比例，也就是占比少于100股的价格都归零
         pv_table_adj = {}
         for key, value in pv_table.items():
@@ -520,7 +540,7 @@ def new_write_oneday_pricetable(sum_df, date):
 
 
 if __name__ == '__main__':
-    pricetabl_dates = get_pricetable()    # ['20160104', '20160105', '20180206']
+    pricetable_dates = get_pricetable()    # ['20160104', '20160105', '20180206']
     #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306,charset='utf8')
     conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306,charset='utf8')
     cur = conn.cursor()
@@ -528,23 +548,23 @@ if __name__ == '__main__':
     row = cur.fetchone()[0]
     last_day = str(row).replace('-', '')    # '2016-01-04' -->  20160104
 
-    index = pricetabl_dates.index(last_day)
+    index = pricetable_dates.index(last_day)
     
 
 
     
 #    sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/20180228_pricetable.csv")    # 读取下载的CSV
-    for i in range(index + 1, len(pricetabl_dates)):
+    for i in range(index + 1, len(pricetable_dates)):
     #for i in range(index + 1, index + 2):
        # 请开始你的表演
-        url = "http://jobs.fintech.lugu/level2/ana/" + pricetabl_dates[i] + "/pricetable.csv"
-        shell_order = "wget -O " + '/data/yue_ming_pricetable/pricetable/' + pricetabl_dates[i] + "_pricetable.csv " + url
+        url = "http://jobs.fintech.lugu/level2/ana/" + pricetable_dates[i] + "/pricetable.csv"
+        shell_order = "wget -O " + '/data/yue_ming_pricetable/pricetable/' + pricetable_dates[i] + "_pricetable.csv " + url
         os.system(shell_order)    # 下载
 
-        sum_df = pd.read_csv('/data/yue_ming_pricetable/pricetable/' + pricetabl_dates[i] + "_pricetable.csv")    # 读取下载的CSV
+        sum_df = pd.read_csv('/data/yue_ming_pricetable/pricetable/' + pricetable_dates[i] + "_pricetable.csv")    # 读取下载的CSV
        # 下一步开始计算该sum_df  难点在于没有中间数据
        # 一步一步梳理中间数据
-        new_write_oneday_pricetable(sum_df, pricetabl_dates[i])
+        new_write_oneday_pricetable(sum_df, pricetable_dates[i])
 
        # 计算完chip之后再计算支撑天数，压力天数，获利比例，得分、筹码分类等等
 

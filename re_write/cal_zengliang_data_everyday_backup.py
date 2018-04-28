@@ -185,17 +185,23 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
         conn = pymysql.connect(host='10.77.4.65', user='fan.mei', passwd='68d96f5ec3', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
         cur = conn.cursor()
  
-        cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='%s' and enddate='%s'"%(code, date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 
-        row = cur.fetchone()
-        #if code == '601360':         #巨灵数据库在20180228之后将601313变更成了601360
-        #    pdb.set_trace()
-        if not row:
-            if code == '601360':
-                cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='601313' and enddate='%s'"%(date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 
-                row = cur.fetchone()
+#        cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='%s' and enddate='%s'"%(code, date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 
+#        row = cur.fetchone()
+#        #if code == '601360':         #巨灵数据库在20180228之后将601313变更成了601360
+#        #    pdb.set_trace()
+#        if not row:
+#            if code == '601360':
+#                cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='601313' and enddate='%s'"%(date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 
+#                row = cur.fetchone()
 
-        turnover_ratio = float(row[0]) / 100
-        turnover_volume = float(row[1])
+        cur.execute("select FL_ASHR from  STK_SHR_STRU where A_STOCKCODE=%s order by DECLAREDATE desc limit 1"%code)
+        row_get_liutongguben = cur.fetchone()
+
+        liutongguben = float(row_get_liutongguben[0])
+
+        turnover_ratio = ddf["TotalTx"].sum() / liutongguben
+
+
 
         # ex_factor = dddf.loc[int(date), "复权因子"]
         url = "http://fintech.jrj.com.cn/tp/astock/getfactor?code=%s&date=%s" % (code, date_)      # 注意  取复权因子需要前一天
@@ -210,7 +216,7 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
         except Exception as e:
             #pdb.set_trace()
             ex_factor = 1
-            print("Exception: ", str(e), "当天无复权信息")
+            #print("Exception: ", str(e), "当天无复权信息")
 
         pv_table = {}   # 传进来的tmp_pv_table的key, value是str类型
         for key, value in tmp_pv_table.items():
@@ -218,7 +224,7 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
 
 
         price = list(ddf["Price"] / 10000)  # 除以cum_factor, 比如从20160104之后只分红过两次，一次是16年6月17，一次是17年7月16，则cum_factor 等于这两次的除权因子的乘积。参加300299.
-        volume = [i * turnover_ratio / turnover_volume for i in list(ddf["Volume"])]
+        volume = [i / liutongguben for i in list(ddf["Volume"])]
         chip = dict(zip(price, volume))  # 直接形成chip表
         # if ddf["TotalTx"].sum() == 0:
         #    ratio =
@@ -463,92 +469,92 @@ def new_write_oneday_pricetable(sum_df, date):
     #tmp_dict = json.loads(html.decode('utf-8'))   # 获取当天所有交易的股票代码
 
 
-#    records_zb = []
-#    records_zxb = []
-#    records_cyb = []
-#
-#    results = []
-#    pool = multiprocessing.Pool(processes=16)
-#
-#    for item in set(sum_df["SecurityID"]):  # 代码集合
-#        #pdb.set_trace()
-#        if str(item)[1] in ['0', '3', '6']:   # 有些是基金，目前发现的基金代码以5开头
-#            if cal_or_not(item, sum_df, date):  # 是股票代码且sum_df中不全是0，也就是当天没有停牌
-#                #write_oneday_pricetable(iitem, row_list_tables, date, sum_df, initial_info)
-#                result = pool.apply_async(new_write_onestock, args=(item, date))
-#                #result = new_write_onestock(item, date)
-#                results.append(result)
-#    pool.close()
-#    pool.join()
-#
-#    #pdb.set_trace()
-#    for result in results:
-#        code_name = result.get()[0]
-#        if code_name[0] == '6':
-#            records_zb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]),str(result.get()[4])))  # result.get()   # 返回的pv_table
-#        if code_name[0] == '0':
-#            records_zxb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]), str(result.get()[4])))
-#        if code_name[0] == '3':
-#            records_cyb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]), str(result.get()[4])))
-#    
-#
-#    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306,charset='utf8')
-#    cur = conn.cursor()
-#
-#    try:
-#        cur.executemany(
-#            "insert into pricetable_zb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)",
-#            records_zb)
-#        cur.executemany(
-#            "insert into pricetable_zxb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)",
-#            records_zxb)
-#        cur.executemany(
-#            "insert into pricetable_cyb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)",
-#            records_cyb)
-#
-#        conn.commit()
-#        print(date, " over")
-#    except Exception as e:
-#        conn.rollback()
-#        print(date, "Exception: ", str(e))
+    records_zb = []
+    records_zxb = []
+    records_cyb = []
 
-
-################ 以下是计算增量字段
-    pricetable = {'6':"pricetable_zb",'0':"pricetable_zxb", '3':"pricetable_cyb"}
+    results = []
+    pool = multiprocessing.Pool(processes=16)
 
     for item in set(sum_df["SecurityID"]):  # 代码集合
         #pdb.set_trace()
-        code = str(item)[1:]    #'600000'
-        if str(item)[1] in ['0', '3', '6']:
-            if cal_or_not(item, sum_df, date):
-                cal_one_code_zengliang_fields_day(pricetable[code[0]], code, date)            
+        if str(item)[1] in ['0', '3', '6']:   # 有些是基金，目前发现的基金代码以5开头
+            if cal_or_not(item, sum_df, date):  # 是股票代码且sum_df中不全是0，也就是当天没有停牌
+                #write_oneday_pricetable(iitem, row_list_tables, date, sum_df, initial_info)
+                result = pool.apply_async(new_write_onestock, args=(item, date))
+                #result = new_write_onestock(item, date)
+                results.append(result)
+    pool.close()
+    pool.join()
+
+    #pdb.set_trace()
+    for result in results:
+        code_name = result.get()[0]
+        if code_name[0] == '6':
+            records_zb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]),str(result.get()[4])))  # result.get()   # 返回的pv_table
+        if code_name[0] == '0':
+            records_zxb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]), str(result.get()[4])))
+        if code_name[0] == '3':
+            records_cyb.append((code_name, date, str(result.get()[1]), str(result.get()[2]), str(result.get()[3]), str(result.get()[4])))
+    
+
+    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306,charset='utf8')
+    cur = conn.cursor()
+
+    try:
+        cur.executemany(
+            "insert into pricetable_zb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)",
+            records_zb)
+        cur.executemany(
+            "insert into pricetable_zxb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)",
+            records_zxb)
+        cur.executemany(
+            "insert into pricetable_cyb (code, tra_date, chip, close, pre_p, sup_p) values(%s,%s,%s,%s,%s,%s)",
+            records_cyb)
+
+        conn.commit()
+        print(date, " over")
+    except Exception as e:
+        conn.rollback()
+        print(date, "Exception: ", str(e))
+
+
+################ 以下是计算增量字段
+#    pricetable = {'6':"pricetable_zb",'0':"pricetable_zxb", '3':"pricetable_cyb"}
+#
+#    for item in set(sum_df["SecurityID"]):  # 代码集合
+#        #pdb.set_trace()
+#        code = str(item)[1:]    #'600000'
+#        if str(item)[1] in ['0', '3', '6']:
+#            if cal_or_not(item, sum_df, date):
+#                cal_one_code_zengliang_fields_day(pricetable[code[0]], code, date)            
         
 
 
 if __name__ == '__main__':
-    pricetabl_dates = get_pricetable()    # ['20160104', '20160105', '20180206']
+    pricetable_dates = get_pricetable()    # ['20160104', '20160105', '20180206']
     #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306,charset='utf8')
     conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306,charset='utf8')
     cur = conn.cursor()
     cur.execute("select tra_date from pricetable_cyb order by tra_date desc limit 1")   # 查找最后一天,创业板表记录最少，因此查创业板
     row = cur.fetchone()[0]
     last_day = str(row).replace('-', '')    # '2016-01-04' -->  20160104
+#    pdb.set_trace()
+    index = pricetable_dates.index(last_day)
+#    sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/20180416_pricetable.csv")
+#    new_write_oneday_pricetable(sum_df, '20180416')
+    sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/20180228_pricetable.csv")    # 读取下载的CSV
+    for i in range(index + 1, len(pricetable_dates)):
+   #for i in range(index + 1, index + 2):
+       # 请开始你的表演
+        url = "http://jobs.fintech.lugu/level2/ana/" + pricetable_dates[i] + "/pricetable.csv"
+        shell_order = "wget -O " + '/data/yue_ming_pricetable/pricetable/' + pricetable_dates[i] + "_pricetable.csv " + url
+        os.system(shell_order)    # 下载
 
-    index = pricetabl_dates.index(last_day)
-    sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/20180416_pricetable.csv")
-    new_write_oneday_pricetable(sum_df, '20180416')
-#    sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/20180228_pricetable.csv")    # 读取下载的CSV
-#    for i in range(index + 1, len(pricetabl_dates)):
-#   #for i in range(index + 1, index + 2):
-#       # 请开始你的表演
-#        url = "http://jobs.fintech.lugu/level2/ana/" + pricetabl_dates[i] + "/pricetable.csv"
-#        shell_order = "wget -O " + '/data/yue_ming_pricetable/pricetable/' + pricetabl_dates[i] + "_pricetable.csv " + url
-#        os.system(shell_order)    # 下载
-#
-#        sum_df = pd.read_csv('/data/yue_ming_pricetable/pricetable/' + pricetabl_dates[i] + "_pricetable.csv")    # 读取下载的CSV
-#       # 下一步开始计算该sum_df  难点在于没有中间数据
-#       # 一步一步梳理中间数据
-#        new_write_oneday_pricetable(sum_df, pricetabl_dates[i])
+        sum_df = pd.read_csv('/data/yue_ming_pricetable/pricetable/' + pricetable_dates[i] + "_pricetable.csv")    # 读取下载的CSV
+       # 下一步开始计算该sum_df  难点在于没有中间数据
+       # 一步一步梳理中间数据
+        new_write_oneday_pricetable(sum_df, pricetable_dates[i])
         
 
     
