@@ -507,9 +507,16 @@ def cal_one_code_avgcost_and_winpct(table_name, code):    # 计算一只股票�
             index = sorted_keys.index(float(key))
             sum_zhanbi = sum(sorted_values[:index])
             price_win_pct.append(sum_zhanbi)
-            if round(float(key),2) == close:
-                win_pct = sum(sorted_values[:index])
-         
+            #if round(float(key),2) == close:                    # 需要修改，close不一定在chip当中
+            #    win_pct = sum(sorted_values[:index])
+        
+        shouyi = [abs(key - close) for key in sorted_keys()]    # 找出最接近收盘价的那个chip中的价格
+        index_zuijiejin = shouyi.index(min(shouyi))
+        win_pct = sum(sorted_values[:index])        
+
+        for key,value in chip.items():
+            
+ 
         #  propct_cerprc mediumtext, add profit_pct float, add cost_avg
         #records = [(str(price_win_pct), win_pct, avg_cost, code, date)]
         records.append((str(price_win_pct), win_pct, avg_cost, code, date))
