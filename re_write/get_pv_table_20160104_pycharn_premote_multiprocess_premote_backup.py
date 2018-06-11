@@ -46,8 +46,13 @@ def extreme(tmp_my_dict, close):   # 思路是在收盘价的一个涨跌幅之�
         #     dict_list.append({k: v})   # 为了利用nlargest函数，将dict变成了[dict]的格式
         # envelope = nlargest(8, dict_list, key=lambda s: s["chip"])   # 取最大的8个作为包络
 
-        my_array1 = np.arange(round(0.9 * close, 2), close, 0.01)   # 低于收盘价，计算支撑位
-        my_array2 = np.arange(close, round(1.1 * close, 2), 0.01)    # 高于收盘价，计算压力位
+        if len(my_dict) >= 4:
+            my_array1 = np.arange(round(0.9 * close, 2), close-0.01, 0.01)   # 低于收盘价，计算支撑位
+            my_array2 = np.arange(close, round(1.1 * close, 2), 0.01)    # 高于收盘价，计算压力位
+        else:
+            my_array1 = np.arange(round(0.5 * close, 2), close-0.01, 0.01)   # 低于收盘价，计算支撑位
+            my_array2 = np.arange(close, round(1.1 * close, 2), 0.01)    # 高于收盘价，计算压力位
+
 
         tmp1 = []
         tmp2 = []
@@ -199,7 +204,10 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):   # 利用昨天筹码图，当�
 
         ### 处理pv_tables中某些value为负数的情况
         market_cap = turnover_volume / turnover_ratio
-        threshold = 0.00001  # 阈值定义为100股对应的比例，也就是占比少于100股的价格都归零
+        if len(pv_table) > 20:
+            threshold = 0.00001  # 阈值定义为100股对应的比例，也就是占比少于100股的价格都归零
+        else:
+            threshold = 0.0
         pv_table_adj = {}
         for key, value in pv_table.items():
             if value > threshold:
@@ -265,7 +273,7 @@ def new_write_onestock(item, date):
     conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
     cur = conn.cursor()
     pricetable = code_table[code_name[0]]  # 根据code_table  dict获得是那一张表
-    sql = "select count(*) from %s where code='%s'" % (pricetable, code_name)
+    sql = "select count(*) from %s where code='%s' and tra_date<'%s'" % (pricetable, code_name, date)
     cur.execute(sql)
     #db.cursor.execute(sql)
     #row = db.cursor.fetchone()
@@ -279,13 +287,26 @@ def new_write_onestock(item, date):
         tmp_ddf = sum_df.loc[sum_df['SecurityID'] == int_indexcode]  # 直接从sum_df中切片索引得到该股票的ddf
         ddf = tmp_ddf.loc[tmp_ddf['Price'] != 0]
         ipo_price = min(ddf["Price"])/10000/1.2
+
+        # 新股的首发价也需要进行除权，第一次的时候
+        #if code[0] == '6':
+        #    tmp_code = code + '.SH'
+        #else:
+        #    tmp_code = code + ".SZ"  # tmp_code = lambda x: x + '.SH' if x[0] == '6' else x + '.SZ'
+        dddf = pd.read_csv("/root/project_price/vol_turnover_test_ex_factor_20180404/" + tmp_code + ".CSV", encoding='gbk',index_col=0)
+        try:
+            ex_factor = dddf.loc[int(date), "复权因子"]
+        except Exception as e:
+            ex_factor = 1
+        ipo_price = ipo_price / ex_factor
+
         initial_pvtable = {ipo_price: 1}
         today_pvtable, close_price = cal_pvtable(initial_pvtable, ddf, date, code_name)
 
     else:
         # 已经存在的股票，取最近的chip开始计算即可
         #sql = "select chip from %s where code='%s' order by tra_date desc limit 1" % (pricetable, code_name)
-        sql = "select chip from %s where code='%s' and length(chip)>4 order by tra_date desc limit 1" % (pricetable, code_name)
+        sql = "select chip from %s where code='%s' and tra_date<'%s' and length(chip)>4 order by tra_date desc limit 1" % (pricetable, code_name, date)
         # cur.execute("select chip from %s where code='%s' order by tra_date desc limit 1"%(pricetable, code_name))
         # cur.execute("select chip from %s where code='%s' order by tra_date desc limit 1 ")%(pricetable, code_name) 注意这种错误写法  写在了括号外面
         cur.execute(sql)
@@ -295,7 +316,7 @@ def new_write_onestock(item, date):
         try:
             yesterday_pvtable = eval(row[0])
         except Exception as e:
-            print("Error")
+            print("Error:", code_name, date)
             #pdb.set_trace()
             yesterday_pvtable = {}
         #yesterday_pvtable = eval(row[0])
@@ -475,7 +496,7 @@ if __name__ == '__main__':
         
 
 #    with getPTConnection() as db:    
-    for item in files_name:          # 一个pricetable是一个循环，一次计算完一个pricetable
+    for item in files_name[100:]:          # 一个pricetable是一个循环，一次计算完一个pricetable
         print(item)
         date = item[0:8]  # 20160104
         sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/" + item)
@@ -489,180 +510,7 @@ if __name__ == '__main__':
 #        row_list_tables = cur.fetchall()
 #        if int(date) < 20180207:
         new_write_oneday_pricetable(sum_df, date)   
- 
-               
-                
 
-
-#from DB_connetion_pool import getPTConnection, PTConnectionPool;
-#
-#def TestMySQL():
-#    #申请资源  
-#    with getPTConnection() as db:
-#        # SQL 查询语句;
-#        sql = "SELECT tra_date FROM pricetable_zb where code='600000'";
-#        try:
-#            # 获取所有记录列表
-#            db.cursor.execute(sql)
-#            results = db.cursor.fetchall();
-#            for row in results:
-#                print(row[0])
-#                # 打印结果
-#        except:
-#            print ("Error: unable to fecth data")
-#
-#TestMySQL()
-
-
-
-
-
-
-#        with ProcessPoolExecutor(4) as executor:
-#            for iitem in list(set(sum_df["SecurityID"]))[0:1]:  # 代码集合
-#                # write_oneday_pricetable(iitem, row_list_tables, date, sum_df, initial_info)
-#                code_name = str(iitem)[1:len(str(iitem))]  # 1600000 -> "600000"
-#                if code_name == "601313":
-#                    code_name = "601360"
-#                if code_name[0] == '6':
-#                    tmp_code = code_name + '.SH'  # 600000.SH
-#                elif code_name[0] == '0' or code_name[0] == '3':
-#                    tmp_code = code_name + '.SZ'
-#                
-#                pdb.set_trace()                
-#
-#                if str(iitem)[1] in ["6","0","2"]:
-#                    if tmp_code in list(code_list):
-#                        future = executor.submit(write_oneday_pricetable, iitem, row_list_tables, date, sum_df, initial_info)
-        
-        # 多线程走起
-        ##      在这里考虑用用多线程
-        #with ProcessPoolExecutor(4) as executor:
-        #    for iitem in list(set(sum_df["SecurityID"])):  # 代码集合
-                # write_oneday_pricetable(iitem, row_list_tables, date, sum_df, initial_info)
-        #        executor.submit(write_oneday_pricetable, iitem, row_list_tables, date, sum_df, initial_info)
-            # code_name = str(iitem)[1:len(str(iitem))]    # 1600000 -> "600000"
-            # ddf = sum_df.loc[sum_df['SecurityID'] == iitem]   #   直接从sum_df中切片索引得到该股票的ddf
-            # if len(ddf):   # 如果存在记录
-            #     #pool.apply_async(write_pv_table, (code_name, date, ddf))
-            #     write_pv_table(code_name, date, ddf)
-        # pool.close()
-        # pool.join()
-
-
-        # for iitem in set(sum_df["SecurityID"]):  # 代码集合
-        #     code_name = str(iitem)[1:len(str(iitem))]  # 1600000 -> "600000"
-        #     # 由ddf计算pv_table
-        #     if code_name[0] == '6':
-        #         table_name = 'sh' + code_name   # sh600000
-        #         tmp_code = code_name + '.SH'    # 600000.SH
-        #     elif code_name[0] == '0' or code_name[0] == '3':
-        #         table_name = 'sz' + code_name
-        #         tmp_code = code_name + '.SZ'
-        #
-        #     #   ("sh600000",) in row
-        #     if (table_name, ) in row_list_tables:   # 有该股票名字的表
-        #         # 需要注意停牌的情况
-        #         last_id_sql = "SELECT * FROM %s ORDER BY id DESC LIMIT 1"%(table_name)
-        #         cur.execute(last_id_sql)
-        #         row = cur.fetchall()
-        #         try:
-        #             if str(row[0][1]).replace("-", "") == date:  # str(row[0][1]) == "20161124"
-        #                 print(date, table_name, " exists")
-        #             else:
-        #                 ddf = sum_df.loc[sum_df['SecurityID'] == iitem]  # 直接从sum_df中切片索引得到该股票的ddf
-        #                 today_pvtable = cal_pvtable(eval(row[0][2]), ddf, date, code_name)
-        #                 sql_insert_pvtable = "insert into %s (Tra_Date,Chip) values('%s','%s')" % (
-        #                     table_name, date, today_pvtable)
-        #                 cur.execute(sql_insert_pvtable)
-        #                 conn.commit()
-        #                 print(date, table_name, " cal done")
-        #         except Exception as e:
-        #             print(str(e), row)
-        #     else:                       # 新股票
-        #         try:
-        #             ipo_price = initial_info.loc[tmp_code]["首发价格"]  # 发行价
-        #             if ipo_price != ipo_price:  # 说明ipo价格为nan, 此时设置ipo_price 为1
-        #                 ipo_price = 1
-        #             initial_pvtable = {ipo_price: 1}
-        #             ddf = sum_df.loc[sum_df['SecurityID'] == iitem]  # 直接从sum_df中切片索引得到该股票的ddf
-        #             today_pvtable = cal_pvtable(initial_pvtable, ddf, date, code_name)
-        #             sql_insert_pvtable = "insert into %s (Tra_Date,Chip) values('%s','%s')" % (
-        #                 table_name, date, today_pvtable)
-        #             cur.execute(sql_insert_pvtable)
-        #             conn.commit()
-        #             print(date, table_name, " cal done")
-        #         except Exception as e:
-        #             print(str(e), date, code_name)
-
-
-            # sql_select_pv_table = "select * from %s where Tra_Date ='%s'" % (table_name, date)
-            # cur.execute(sql_select_pv_table)     # 查询当天分价表是否存在
-            #
-            # row = cur.fetchall()
-            # if not len(row):  # date日期的分价表不存在，开始计算
-            #     ddf = sum_df.loc[sum_df['SecurityID'] == iitem]  # 直接从sum_df中切片索引得到该股票的ddf
-            #
-            #     # 取前一交易日分价表，开始计算
-            #     # 现在已知该股票当天的ddf，也就是当天的分价表，还需要获得前一天分价表，再计算，然后再写入到Mysql当中去
-            #
-            #     # date -> yesterday   self.date[0:4] + '-' + self.date[4:6] + '-' + self.date[6:8]
-            #     index = list_tra_date.index([date[0:4] + '-' + date[4:6] + '-' + date[6:8], 1])  # date肯定为交易日
-            #     for i in range(index - 1, -1, -1):
-            #         if list_tra_date[i][-1] == 1:
-            #             yesterday = list_tra_date[i][0]
-            #             break
-            #
-            #     # 取得昨天的pv_table
-            #     yesterday_pv_table = "select * from %s where Tra_Date ='%s'" % (table_name, yesterday.replace("-", ""))
-            #     cur.execute(yesterday_pv_table)
-            #     row_yesterday = cur.fetchall()
-            #
-            #     if row_yesterday:
-            #         # 可以利用yesterday和今天的分价表来计算筹码表
-            #         today_pvtable = cal_pvtable(eval(row_yesterday[0][2]), ddf, date, code_name)
-            #         sql_insert_pvtable = "insert into %s (Tra_Date,Chip) values('%s','%s')" % (
-            #         table_name, date, today_pvtable)
-            #         cur.execute(sql_insert_pvtable)
-            #         conn.commit()
-            #     else:  # yesterday 不存在，则说明是第一天
-            #         if code_name[0] == '6':
-            #             tmp_code = code_name + '.SH'
-            #         else:
-            #             tmp_code = code_name + ".SZ"
-            #         ipo_price = initial_info.loc[tmp_code]["首发价格"]  # 发行价
-            #         if ipo_price != ipo_price:  # 说明ipo价格为nan, 此时设置ipo_price 为1
-            #             ipo_price = 1
-            #         initial_pvtable = {ipo_price: 1}
-            #
-            #         today_pvtable = cal_pvtable(initial_pvtable, ddf, date)
-            #         sql_insert_pvtable = "insert into %s (Tra_Date,Chip) values('%s','%s')" % (
-            #         table_name, date, today_pvtable)
-            #         cur.execute(sql_insert_pvtable)
-            #         conn.commit()
-            #
-            # else:     # date日期的分价表存在  应该不做任何事，继续下一个循环
-            #     print(date, table_name, " exists")
-
-        # sum_df = pd.read_csv("E:/wind_export_files/yue_ming_pricetable/pricetable/" + item)  # 20160104.csv
-        #
-        # # pool = multiprocessing.Pool(processes = 4)
-        # with ThreadPoolExecutor(32) as executor:
-        #     # with ProcessPoolExecutor(16) as executor:
-        #     for iitem in set(sum_df["SecurityID"]):  # 代码集合
-        #         # if str(iitem) == "2002778":
-        #         executor.submit(cal_each_stock_in_one_pricetable, iitem, sum_df, date)
-        #     # code_name = str(iitem)[1:len(str(iitem))]    # 1600000 -> "600000"
-        #     # ddf = sum_df.loc[sum_df['SecurityID'] == iitem]   #   直接从sum_df中切片索引得到该股票的ddf
-        #     # if len(ddf):   # 如果存在记录
-        #     #     #pool.apply_async(write_pv_table, (code_name, date, ddf))
-        #     #     write_pv_table(code_name, date, ddf)
-        # # pool.close()
-        # # pool.join()
     t2 = time.time()
     print(t2 - t1)
-
-# with ThreadPoolExecutor(8) as executor:
-#     for each in files_name[0][9:]:
-#         executor.submit(write_mysql, each)
 

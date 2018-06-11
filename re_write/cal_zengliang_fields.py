@@ -515,11 +515,9 @@ def cal_one_code_avgcost_and_winpct(table_name, code):    # 计算一只股票�
         win_pct = sum(sorted_values[:index])        
 
         for key,value in chip.items():
-            
- 
         #  propct_cerprc mediumtext, add profit_pct float, add cost_avg
         #records = [(str(price_win_pct), win_pct, avg_cost, code, date)]
-        records.append((str(price_win_pct), win_pct, avg_cost, code, date))
+            records.append((str(price_win_pct), win_pct, avg_cost, code, date))
 
 #        records.append((str(chip), code, str(item[0]).replace('-','')))   # 读取记录，存入tuple中
 #    print(records[-1])

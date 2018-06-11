@@ -11,8 +11,6 @@ import pymysql
 import multiprocessing
 import time
 import os
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import ProcessPoolExecutor, as_completed
 import pdb
 from warnings import filterwarnings
 from functools import reduce
@@ -90,8 +88,17 @@ def extreme(tmp_my_dict, close):  # 思路是在收盘价的一个涨跌幅之�
         #     dict_list.append({k: v})   # 为了利用nlargest函数，将dict变成了[dict]的格式
         # envelope = nlargest(8, dict_list, key=lambda s: s["chip"])   # 取最大的8个作为包络
 
-        my_array1 = np.arange(round(0.9 * close, 2), close, 0.01)  # 低于收盘价，计算支撑位
-        my_array2 = np.arange(close, round(1.1 * close, 2), 0.01)  # 高于收盘价，计算压力位
+        #my_array1 = np.arange(round(0.9 * close, 2), close, 0.01)  # 低于收盘价，计算支撑位
+        #my_array2 = np.arange(close, round(1.1 * close, 2), 0.01)  # 高于收盘价，计算压力位
+
+        if len(my_dict) >= 4:
+            my_array1 = np.arange(round(0.9 * close, 2), close-0.01, 0.01)   # 低于收盘价，计算支撑位^M
+            my_array2 = np.arange(close, round(1.1 * close, 2), 0.01)    # 高于收盘价，计算压力位^M
+        else:
+            my_array1 = np.arange(round(0.5 * close, 2), close-0.01, 0.01)   # 低于收盘价，计算支撑位^M
+            my_array2 = np.arange(close, round(1.1 * close, 2), 0.01)    # 高于收盘价，计算压力位^M
+       
+ 
 
         tmp1 = []
         tmp2 = []
@@ -182,7 +189,7 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
         # 直接上tushare  df = ts.get_hist_data('600000',start='2016-01-06',end='2016-01-06')
         date_ = date[0:4] + '-' + date[4:6] + '-' + date[6:]
 
-        conn = pymysql.connect(host='10.77.4.65', user='fan.mei', passwd='68d96f5ec3', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
+        conn = pymysql.connect(host='10.8.3.198', user='fan.mei', passwd='fan.mei04', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
         cur = conn.cursor()
  
 #        cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='%s' and enddate='%s'"%(code, date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 
@@ -194,10 +201,23 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
 #                cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='601313' and enddate='%s'"%(date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 
 #                row = cur.fetchone()
 
-        cur.execute("select FL_ASHR from  STK_SHR_STRU where A_STOCKCODE=%s order by DECLAREDATE desc limit 1"%code)
+        cur.execute("select FL_ASHR LIST_FL_ASHR from  STK_SHR_STRU where A_STOCKCODE=%s order by CHANGEDATE desc limit 1"%code)
         row_get_liutongguben = cur.fetchone()
 
-        liutongguben = float(row_get_liutongguben[0])
+        if row_get_liutongguben[0]:   # 如果没有A股流通股本，则总股本就是流通副本
+            liutongguben = float(row_get_liutongguben[0])
+        else:
+            liutongguben = float(row_get_liutongguben[1])
+
+#        cur.execute("select FL_ASHR from  STK_SHR_STRU where A_STOCKCODE=%s order by DECLAREDATE desc limit 1"%code)
+#        row_get_liutongguben = cur.fetchone()
+
+#        if row_get_liutongguben[0]:   # 如果没有A股流通股本，则总股本就是流通副本
+#            liutongguben = float(row_get_liutongguben[0])
+#        else:
+#            liutongguben = float(row_get_liutongguben[1])
+
+#        liutongguben = float(row_get_liutongguben[0])
 
         turnover_ratio = ddf["TotalTx"].sum() / liutongguben
 
@@ -268,8 +288,15 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
                 pv_table[key] = pv_table[key] + value  # 今天成交的筹码加上之前剩下的筹码
 
         ### 处理pv_tables中某些value为负数的情况
-        market_cap = turnover_volume / turnover_ratio
+        #market_cap = turnover_volume / turnover_ratio
         threshold = 0.00001  # 阈值定义为100股对应的比例，也就是占比少于100股的价格都归零
+
+        if len(pv_table) > 20:
+            threshold = 0.00001  # 阈值定义为100股对应的比例，也就是占比少于100股的价格都归零^M
+        else:
+            threshold = 0.0
+
+
         pv_table_adj = {}
         for key, value in pv_table.items():
             if value > threshold:
@@ -352,6 +379,24 @@ def new_write_onestock(item, date):
         #ipo_price = initial_info.loc[tmp_code]["首发价格"]  # 发行价   发行价用最低价除以1.2即可得到
         #if ipo_price != ipo_price:  # 说明ipo价格为nan, 此时设置ipo_price 为1
         #    ipo_price = 1
+        
+        #   也需要进行更改  增加对于新股IPO价格的除权处理        
+        date_ = date[0:4] + '-' + date[4:6] + '-' + date[6:]
+        url = "http://fintech.jrj.com.cn/tp/astock/getfactor?code=%s&date=%s" % (code_name, date_)      # 注意  取复权因子需要前一天
+        res = urllib.request.urlopen(url)
+        html = res.read()
+        try:
+            ex_date = json.loads(html.decode('utf-8'))['data'][0]['ex_date']
+            if ex_date == date_:
+                ex_factor = json.loads(html.decode('utf-8'))['data'][0]['ex_factor']    #这里不对 不应该用累计复权因子，应该用单次因子
+            else:
+                ex_factor = 1
+        except Exception as e:
+            #pdb.set_trace()
+            ex_factor = 1
+        
+        ipo_price = ipo_price / ex_factor
+        
         initial_pvtable = {ipo_price: 1}
 
         today_pvtable = cal_pvtable(initial_pvtable, ddf, date, code_name)
@@ -359,7 +404,7 @@ def new_write_onestock(item, date):
     else:
         # 已经存在的股票，取最近的chip开始计算即可
         # sql = "select chip from %s where code='%s' order by tra_date desc limit 1" % (pricetable, code_name)
-        sql = "select chip from %s where code='%s' and length(chip)>4 order by tra_date desc limit 1" % (pricetable, code_name)
+        sql = "select chip from %s where code='%s' and tra_date<'%s' and length(chip)>4 order by tra_date desc limit 1" % (pricetable, code_name, date)
         # cur.execute("select chip from %s where code='%s' order by tra_date desc limit 1"%(pricetable, code_name))
         # cur.execute("select chip from %s where code='%s' order by tra_date desc limit 1 ")%(pricetable, code_name) 注意这种错误写法  写在了括号外面
         cur.execute(sql)
@@ -370,7 +415,7 @@ def new_write_onestock(item, date):
             yesterday_pvtable = eval(row[0])
         except Exception as e:
             print("Error")
-            # pdb.set_trace()
+            #pdb.set_trace()
         yesterday_pvtable = eval(row[0])
 
         tmp_ddf = sum_df.loc[sum_df['SecurityID'] == int_indexcode]  # 直接从sum_df中切片索引得到该股票的ddf
@@ -391,7 +436,8 @@ def new_write_onestock(item, date):
 #        html = res.read()
 #        code_today_hangqing = json.loads(html.decode('utf-8'))
 #        close_price = code_today_hangqing['data'][0]['tclose']    # 从fintech.jrj中获取close price
-        conn = pymysql.connect(host='10.77.4.65', user='fan.mei', passwd='68d96f5ec3', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
+
+        conn = pymysql.connect(host='10.88.3.198', user='fan.mei', passwd='fan.mei04', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
         cur = conn.cursor()
 
         cur.execute("select tclose from ana_stk_expr_idx where stockcode='%s' and enddate='%s'"%(code_name, date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514'))   这里读取的是不复权收盘价，需要转换一下 
@@ -405,6 +451,8 @@ def new_write_onestock(item, date):
     sp_price_dict = extreme(today_pvtable, close_price)  # 需要获得前复权价格   002668 NoneType has no attribute 'item'
 
     #    records.append((float(sp_price_dict["P"]),float(sp_price_dict["S"]), code, item[0]))
+
+    print(code_name, date, '  over')
 
     return code_name, today_pvtable, close_price, sp_price_dict['P'], sp_price_dict['S']
     # return item+1,date
@@ -469,6 +517,7 @@ def new_write_oneday_pricetable(sum_df, date):
     #tmp_dict = json.loads(html.decode('utf-8'))   # 获取当天所有交易的股票代码
 
 
+    #pdb.set_trace()
     records_zb = []
     records_zxb = []
     records_cyb = []
@@ -543,13 +592,13 @@ if __name__ == '__main__':
     index = pricetable_dates.index(last_day)
 #    sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/20180416_pricetable.csv")
 #    new_write_oneday_pricetable(sum_df, '20180416')
-    sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/20180228_pricetable.csv")    # 读取下载的CSV
+#    sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/20180228_pricetable.csv")    # 读取下载的CSV
     for i in range(index + 1, len(pricetable_dates)):
-   #for i in range(index + 1, index + 2):
+#   for i in range(index + 1, index + 2):
        # 请开始你的表演
-        url = "http://jobs.fintech.lugu/level2/ana/" + pricetable_dates[i] + "/pricetable.csv"
-        shell_order = "wget -O " + '/data/yue_ming_pricetable/pricetable/' + pricetable_dates[i] + "_pricetable.csv " + url
-        os.system(shell_order)    # 下载
+       # url = "http://jobs.fintech.lugu/level2/ana/" + pricetable_dates[i] + "/pricetable.csv"
+       # shell_order = "wget -O " + '/data/yue_ming_pricetable/pricetable/' + pricetable_dates[i] + "_pricetable.csv " + url
+       # os.system(shell_order)    # 下载
 
         sum_df = pd.read_csv('/data/yue_ming_pricetable/pricetable/' + pricetable_dates[i] + "_pricetable.csv")    # 读取下载的CSV
        # 下一步开始计算该sum_df  难点在于没有中间数据

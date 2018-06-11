@@ -270,6 +270,18 @@ def new_write_onestock(item, date):
         tmp_ddf = sum_df.loc[sum_df['SecurityID'] == int_indexcode]  # 直接从sum_df中切片索引得到该股票的ddf
         ddf = tmp_ddf.loc[tmp_ddf['Price'] != 0]
         ipo_price = min(ddf["Price"])/10000/1.2
+        
+        dddf = pd.read_csv("/root/project_price/vol_turnover_test_ex_factor_20180404/" + tmp_code + ".CSV", encoding='gbk',index_col=0) 
+        if code[0] == '6':
+            tmp_code = code + '.SH'
+        else:
+            tmp_code = code + ".SZ"  # tmp_code = lambda x: x + '.SH' if x[0] == '6' else x + '.SZ'
+        try:
+            ex_factor = dddf.loc[int(date), "复权因子"]
+        except Exception as e:
+            ex_factor = 1
+        ipo_price = ipo_price / ex_factor
+
         initial_pvtable = {ipo_price: 1}
         today_pvtable, close_price = cal_pvtable(initial_pvtable, ddf, date, code_name)
 

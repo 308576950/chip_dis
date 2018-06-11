@@ -33,8 +33,8 @@ if __name__ == '__main__':
                        cur.executemany("insert into pricetable_zxb values (%s, %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", results)         
                    if table_name == 'pricetable_cyb':
                        cur.executemany("insert into pricetable_cyb values (%s, %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", results)         
-                   print(item[1], " over")
+                   print(item[0], " over")
                except Exception as e:
                    print(str(e))
-                   conn.roolback()
+                   conn.rollback()
 

@@ -186,7 +186,7 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
         # 直接上tushare  df = ts.get_hist_data('600000',start='2016-01-06',end='2016-01-06')
         date_ = date[0:4] + '-' + date[4:6] + '-' + date[6:]
 
-        conn = pymysql.connect(host='10.77.4.65', user='fan.mei', passwd='68d96f5ec3', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
+        conn = pymysql.connect(host='10.88.3.198', user='fan.mei', passwd='fan.mei04', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
         cur = conn.cursor()
  
         #cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='%s' and enddate='%s'"%(code, date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 
@@ -213,10 +213,17 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
 #        else:
 #            turnover_ratio = float(row[0]) / 100
 #
-        cur.execute("select FL_ASHR from  STK_SHR_STRU where A_STOCKCODE=%s order by DECLAREDATE desc limit 1"%code)
+        cur.execute("select FL_ASHR LIST_FL_ASHR from  STK_SHR_STRU where A_STOCKCODE=%s order by CHANGEDATE desc limit 1"%code)
         row_get_liutongguben = cur.fetchone()
 
-        liutongguben = float(row_get_liutongguben[0])
+        if row_get_liutongguben[0]:   # 如果没有A股流通股本，则总股本就是流通副本
+            liutongguben = float(row_get_liutongguben[0])
+        else:
+            liutongguben = float(row_get_liutongguben[1])        
+
+#        a_liutongguben = float(row_get_liutongguben[0])   # A股流通股本
+#        t_liutongguben = float(row_get_liutongguben[0])   # 总流通股本
+
 
         turnover_ratio = ddf["TotalTx"].sum() / liutongguben
 
@@ -403,7 +410,8 @@ def new_write_onestock(item, date):
 #        html = res.read()
 #        code_today_hangqing = json.loads(html.decode('utf-8'))
 #        close_price = code_today_hangqing['data'][0]['tclose']    # 从fintech.jrj中获取close price
-        conn = pymysql.connect(host='10.77.4.65', user='fan.mei', passwd='68d96f5ec3', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
+        #conn = pymysql.connect(host='10.77.4.65', user='fan.mei', passwd='68d96f5ec3', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
+        conn = pymysql.connect(host='10.88.3.198', user='fan.mei', passwd='fan.mei04', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
         cur = conn.cursor()
 
         cur.execute("select tclose from ana_stk_expr_idx where stockcode='%s' and enddate='%s'"%(code_name, date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514'))   这里读取的是不复权收盘价，需要转换一下 
@@ -555,8 +563,10 @@ if __name__ == '__main__':
     
 #    sum_df = pd.read_csv("/data/yue_ming_pricetable/pricetable/20180228_pricetable.csv")    # 读取下载的CSV
     for i in range(index + 1, len(pricetable_dates)):
+#    for i in range(len(pricetable_dates)-1, len(pricetable_dates)):
     #for i in range(index + 1, index + 2):
        # 请开始你的表演
+        #pdb.set_trace()
         url = "http://jobs.fintech.lugu/level2/ana/" + pricetable_dates[i] + "/pricetable.csv"
         shell_order = "wget -O " + '/data/yue_ming_pricetable/pricetable/' + pricetable_dates[i] + "_pricetable.csv " + url
         os.system(shell_order)    # 下载
