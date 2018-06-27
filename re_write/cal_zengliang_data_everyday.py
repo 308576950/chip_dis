@@ -51,7 +51,9 @@ def cal_href(item):
 
 # 读取月明的网页中的pricetable的所有日期，决定是否需要更新  返回['20160104', '20160105', '20160106']
 def get_pricetable():
-    response = urllib.request.urlopen("http://jobs.fintech.lugu/level2/ana/")
+    # http://10.88.10.39/level2/pricetable/
+    #response = urllib.request.urlopen("http://jobs.fintech.lugu/level2/ana/")
+    response = urllib.request.urlopen("http://10.88.10.39/level2/pricetable")
     html = response.read()
     soup = BeautifulSoup(html, "lxml")
     href_list = soup.find_all("a")
@@ -567,7 +569,8 @@ if __name__ == '__main__':
     #for i in range(index + 1, index + 2):
        # 请开始你的表演
         #pdb.set_trace()
-        url = "http://jobs.fintech.lugu/level2/ana/" + pricetable_dates[i] + "/pricetable.csv"
+        url = "http://10.88.10.39/level2/pricetable/" + pricetable_dates[i] + "/pricetable.csv"
+        #url = "http://jobs.fintech.lugu/level2/ana/" + pricetable_dates[i] + "/pricetable.csv"
         shell_order = "wget -O " + '/data/yue_ming_pricetable/pricetable/' + pricetable_dates[i] + "_pricetable.csv " + url
         os.system(shell_order)    # 下载
 

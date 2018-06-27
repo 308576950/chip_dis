@@ -189,7 +189,7 @@ def cal_pvtable(tmp_pv_table, ddf, date, code):  # 利用昨天筹码图，当�
         # 直接上tushare  df = ts.get_hist_data('600000',start='2016-01-06',end='2016-01-06')
         date_ = date[0:4] + '-' + date[4:6] + '-' + date[6:]
 
-        conn = pymysql.connect(host='10.8.3.198', user='fan.mei', passwd='fan.mei04', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
+        conn = pymysql.connect(host='10.88.3.198', user='fan.mei', passwd='fan.mei04', db="pgenius", port=6031, charset='utf8')   # 巨灵数据库读取换手率和成交量信息
         cur = conn.cursor()
  
 #        cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='%s' and enddate='%s'"%(code, date))     # cur.execute("select turnover_day, tvolume from ana_stk_expr_idx where stockcode='600000' and enddate='20180403'")  (Decimal('0.0651'), Decimal('18303514')) 

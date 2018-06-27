@@ -424,12 +424,13 @@ def cal_one_code_win_lose_day(table_name, code):    # 计算一只股票的支�
 
 
 def cal_one_code_avgcost_and_winpct(table_name, code):    # 计算一只股票的平均成本、获利比例、每一价格处获利比例
-    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+    #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+    conn = pymysql.connect(host='172.16.20.103', user='JRJ_pv_table', passwd='9JEhCpbeu3YXxyNpFDVQ', port=3308,db='pv_table', charset='utf8')
     cur = conn.cursor()
 #    code_table = {'6':"pricetable_zb", '0':"pricetable_zxb", '3':"pricetable_cyb"}
 #    table_name = code_table[code[0]]
     records = []
-    sql_get_tradates = "select tra_date, chip, close from %s where code = '%s' and tra_date>'20180101'" % (table_name, code)
+    sql_get_tradates = "select tra_date, chip, close from %s where code = '%s' and tra_date>'20160101' and tra_date<'20180102'" % (table_name, code)
     cur.execute(sql_get_tradates)   # 获得所有交易日
     row_date_chip_list = cur.fetchall()
     
@@ -602,7 +603,8 @@ def cal_chip_classify(table_name, code):
 
 if __name__ == '__main__':
     # 第一步，读取pv_table库中table列表，既得股票名称列表
-    conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
+    conn = pymysql.connect(host='172.16.20.103', user='JRJ_pv_table', passwd='9JEhCpbeu3YXxyNpFDVQ', port=3308,db='pv_table', charset='utf8')
+    #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table", port=3306, charset='utf8')
     #conn = pymysql.connect(host='127.0.0.1', user='root', passwd='passw0rd', db="pv_table_backup", port=3306, charset='utf8')
     #                       db='pv_table', charset='utf8')
 
@@ -662,11 +664,11 @@ if __name__ == '__main__':
         cur.execute(sql_get_tables_from_table)
         row_list_codes = cur.fetchall()
         for item in row_list_codes:
-            #pool.apply_async(cal_one_code_avgcost_and_winpct, (table, item[0]))     
+            pool.apply_async(cal_one_code_avgcost_and_winpct, (table, item[0]))     
             #cal_one_code_avgcost_and_winpct(table, item[0])
             #pool.apply_async(cal_one_code_score, (table, item[0]))     
             #cal_one_code_score(table, item[0])
-            pool.apply_async(cal_chip_classify, (table, item[0]))     
+            #pool.apply_async(cal_chip_classify, (table, item[0]))     
             #cal_chip_classify(table, item[0])
         pool.close()
         pool.join() 
